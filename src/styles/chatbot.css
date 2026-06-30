@@ -391,6 +391,18 @@
   padding: 0.25rem 0.5rem;
 }
 
+.chatbot-source-link {
+  text-decoration: none;
+  color: var(--chatbot-primary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.chatbot-source-link:hover {
+  background: color-mix(in srgb, var(--chatbot-primary) 8%, var(--chatbot-bg));
+  border-color: var(--chatbot-primary);
+}
+
 .chatbot-lead-form {
   display: flex;
   flex-direction: column;

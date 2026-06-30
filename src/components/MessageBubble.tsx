@@ -13,11 +13,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <p className="chatbot-message-text">{message.content}</p>
         {message.sources && message.sources.length > 0 && !isUser && (
           <div className="chatbot-sources">
-            {message.sources.map((source) => (
-              <span key={`${source.title}-${source.url ?? "source"}`} className="chatbot-source">
-                {source.title}
-              </span>
-            ))}
+            {message.sources.map((source) => {
+              const key = `${source.title}-${source.url ?? "source"}`;
+              return source.url ? (
+                <a
+                  key={key}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="chatbot-source chatbot-source-link"
+                >
+                  {source.title}
+                </a>
+              ) : (
+                <span key={key} className="chatbot-source">
+                  {source.title}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>

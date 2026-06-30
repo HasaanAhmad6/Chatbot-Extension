@@ -2,6 +2,14 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.2.8] - 2026-06-30
+
+### Added
+- **Clickable Hyperlink Citations**: Modified `MessageBubble.tsx` to render retrieved sources containing a `url` metadata attribute as active anchor `<a>` tags targeting `_blank`. Added hover micro-animations and styling for `.chatbot-source-link` inside `chatbot.css`.
+
+### Changed
+- **Conversational Tone & Persona**: Rewrote the RAG system prompt in `ragPipeline.ts` to instruct the LLM to adopt a friendly first-person persona representing Hasaan, explicitly block clinical prefaces like *"according to the context"*, and natively support greetings (e.g. "hi", "hello") without default fallback errors.
+
 ## [0.2.7] - 2026-06-30
 
 ### Added
