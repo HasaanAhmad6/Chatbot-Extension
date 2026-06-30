@@ -1,0 +1,55 @@
+{
+  "name": "@hasaan_6/rag-chatbot-widget",
+  "version": "0.2.3",
+  "description": "A self-contained RAG chatbot React widget. Plug in any embedding and LLM provider. Built-in Supabase pgvector search. Zero backend required.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.mjs",
+      "require": "./dist/server.js"
+    },
+    "./dist/chatbot.css": "./dist/chatbot.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "chatbot",
+    "rag",
+    "react",
+    "widget",
+    "supabase",
+    "pgvector",
+    "openai",
+    "gemini",
+    "deepseek",
+    "llm",
+    "embedding"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "postbuild": "node ./scripts/copy-css.cjs",
+    "prepare": "npm run build",
+    "dev": "tsup --watch"
+  },
+  "peerDependencies": {
+    "react": ">=17",
+    "react-dom": ">=17"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
