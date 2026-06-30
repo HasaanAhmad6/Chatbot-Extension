@@ -185,7 +185,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
             <input
               value={formState.name}
               onChange={(event) => updateField("name", event.target.value)}
-              className="input-field"
+              className="chatbot-input-field"
               placeholder="Your name"
               required
             />
@@ -195,7 +195,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
               type="email"
               value={formState.email}
               onChange={(event) => updateField("email", event.target.value)}
-              className="input-field"
+              className="chatbot-input-field"
               placeholder="you@company.com"
               required
             />
@@ -205,7 +205,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
               <input
                 value={formState.phone}
                 onChange={(event) => updateField("phone", event.target.value)}
-                className="input-field"
+                className="chatbot-input-field"
                 placeholder="+92..."
                 required
               />
@@ -221,7 +221,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
               <input
                 value={formState.companyName}
                 onChange={(event) => updateField("companyName", event.target.value)}
-                className="input-field"
+                className="chatbot-input-field"
                 placeholder="Company or brand"
                 required
               />
@@ -231,7 +231,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
             <select
               value={formState.requiredService}
               onChange={(event) => updateField("requiredService", event.target.value)}
-              className="input-field"
+              className="chatbot-input-field"
               required
             >
               <option value="">Select a service</option>
@@ -246,7 +246,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
             <select
               value={formState.budget}
               onChange={(event) => updateField("budget", event.target.value)}
-              className="input-field"
+              className="chatbot-input-field"
               required
             >
               <option value="">Select a budget</option>
@@ -261,7 +261,7 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
             <select
               value={formState.preferredContactTime}
               onChange={(event) => updateField("preferredContactTime", event.target.value)}
-              className="input-field"
+              className="chatbot-input-field"
               required
             >
               <option value="">Select one</option>
@@ -281,13 +281,13 @@ export function LeadForm({ sourcePage, intent, config, onCancel, onSubmit }: Lea
             <textarea
               value={formState.projectDetails}
               onChange={(event) => updateField("projectDetails", event.target.value)}
-              className="input-field chatbot-textarea"
+              className="chatbot-input-field chatbot-textarea"
               placeholder="Describe your project, goals, timeline, and any special requirements."
               required
             />
           </Field>
           <Field label="Source page">
-            <input value={formState.sourcePage} className="input-field" readOnly />
+            <input value={formState.sourcePage} className="chatbot-input-field" readOnly />
           </Field>
           <input
             value={formState.honeypot}

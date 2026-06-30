@@ -2,6 +2,17 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.2.6] - 2026-06-30
+
+### Added
+- **Click-Outside-to-Close**: Configured a `useEffect` outside-click listener in `ChatbotWidget.tsx` to automatically collapse the chat window when a user clicks outside the chatbot widget shell.
+
+### Changed
+- **Styling Scoping**: Scoped all input fields in `LeadForm.tsx` to use `.chatbot-input-field` instead of the generic `.input-field` to prevent CSS style leaks to host pages.
+- **Auto-Zoom Prevention**: Overrode mobile viewport input/select/textarea font-size to `16px` (`1rem`) to prevent iOS Safari/Android Chrome from automatically zooming in and shifting the page layout when the input is focused.
+- **Scroll Chaining Fix**: Applied `overscroll-behavior: contain` to `.chatbot-body` and `.chatbot-window` in `chatbot.css` to prevent scroll events from propagating to the host portfolio page.
+- **Text Clipping Fix**: Set `.chatbot-input` height to `100%` and `line-height` to `normal` inside `chatbot.css` to fix vertical layout issues that clipped letters and input placeholder text.
+
 ## [0.2.5] - 2026-06-30
 
 ### Fixed

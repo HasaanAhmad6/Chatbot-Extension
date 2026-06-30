@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { ChatWindow } from "./ChatWindow";
 import { LeadForm, defaultLeadFormConfig } from "./LeadForm";
 import type {
@@ -72,11 +72,29 @@ export default function ChatbotWidget({
   onLeadSubmit,
   leadEndpoint,
 }: ChatbotWidgetProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [createInitialMessage(welcomeMsg)]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [leadFormOpen, setLeadFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [open]);
 
   // Set the initial message once or when welcomeMsg is explicitly changed,
   // but do not reset the entire conversation history.
@@ -198,7 +216,7 @@ export default function ChatbotWidget({
   ) : null;
 
   return (
-    <div className={`chatbot-widget-shell chatbot-theme-${theme}`}>
+    <div ref={containerRef} className={`chatbot-widget-shell chatbot-theme-${theme}`}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
