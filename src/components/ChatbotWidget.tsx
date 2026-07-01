@@ -71,13 +71,43 @@ export default function ChatbotWidget({
   leadFormConfig,
   onLeadSubmit,
   leadEndpoint,
+  persistence = "none",
 }: ChatbotWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [createInitialMessage(welcomeMsg)]);
+  const storageKey = `chatbot-history-${botName}`;
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== "undefined" && persistence !== "none") {
+      const storage = persistence === "local" ? localStorage : sessionStorage;
+      try {
+        const stored = storage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed as ChatMessage[];
+          }
+        }
+      } catch (err) {
+        console.error("[ChatbotWidget] Error reading persistence history:", err);
+      }
+    }
+    return [createInitialMessage(welcomeMsg)];
+  });
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [leadFormOpen, setLeadFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (persistence === "none") return;
+    const storage = persistence === "local" ? localStorage : sessionStorage;
+    try {
+      storage.setItem(storageKey, JSON.stringify(messages));
+    } catch (err) {
+      console.error("[ChatbotWidget] Error saving persistence history:", err);
+    }
+  }, [messages, persistence, storageKey]);
 
   useEffect(() => {
     if (!open) return;

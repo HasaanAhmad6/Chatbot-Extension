@@ -51,6 +51,7 @@ export type ChatbotWidgetProps = {
   leadFormConfig?: LeadFormConfig;
   onLeadSubmit?: (values: LeadFormValues) => Promise<void>;
   leadEndpoint?: string;
+  persistence?: "none" | "local" | "session";
 };
 
 export type ConversationTurn = {

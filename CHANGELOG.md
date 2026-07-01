@@ -2,6 +2,12 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.3.1] - 2026-07-01
+
+### Added
+- **Chat History Persistence**: Added storage persistence configuration to the client widget. Users can pass the `persistence` prop (`"none" | "local" | "session"`) to keep chat logs synchronized to `localStorage` or `sessionStorage` and restored across page reloads.
+- **SSR Safety**: Added server-side rendering execution guards to ensure memory storage sync is bypassed safely in Next.js/Remix SSR environments.
+
 ## [0.3.0] - 2026-07-01
 
 ### Added
