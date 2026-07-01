@@ -2,6 +2,13 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.3.3] - 2026-07-01
+
+### Added
+- **Automated Test Suite**: Set up Vitest testing framework devDependencies and configured testing target scripts in `package.json`.
+- **Vector Store Tests**: Created `vectorStores.test.ts` testing cosine similarity calculations and memory vector store sorting, filtering, and indexing limits.
+- **RAG Pipeline Tests**: Created `ragPipeline.test.ts` testing synchronous prompt formatting and dynamic streaming event parsing (validating XML token stripping and metadata retrieval).
+
 ## [0.3.2] - 2026-07-01
 
 ### Added
