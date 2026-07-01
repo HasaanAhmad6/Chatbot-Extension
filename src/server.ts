@@ -17,6 +17,12 @@ export {
   createGeminiLLMAdapter,
 } from "./lib/adapterFactories";
 
+export {
+  createSupabaseVectorStore,
+  createMemoryVectorStore,
+  cosineSimilarity,
+} from "./lib/vectorStores";
+
 export type {
   EmbeddingAdapter,
   LLMAdapter,
@@ -26,4 +32,5 @@ export type {
   RagPipelineConfig,
   RagPipelineResult,
   DocumentChunk,
+  VectorStoreAdapter,
 } from "./types";

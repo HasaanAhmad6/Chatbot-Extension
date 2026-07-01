@@ -85,11 +85,15 @@ export type DocumentChunk = {
   similarity: number;
 };
 
+export type VectorStoreAdapter = (
+  embedding: number[],
+  options: { matchCount: number; matchThreshold: number }
+) => Promise<DocumentChunk[]>;
+
 export type RagPipelineConfig = {
   embeddingAdapter: EmbeddingAdapter;
   llmAdapter: LLMAdapter;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
+  vectorStore: VectorStoreAdapter;
   matchCount?: number;
   matchThreshold?: number;
   conversationWindow?: number;

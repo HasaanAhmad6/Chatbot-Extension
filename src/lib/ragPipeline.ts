@@ -1,35 +1,7 @@
 import type { ConversationTurn, EmbeddingAdapter, LLMAdapter } from "./adapters";
-import type { DocumentChunk, RagPipelineConfig, RagPipelineResult } from "../types";
+import type { DocumentChunk, RagPipelineConfig, RagPipelineResult, VectorStoreAdapter } from "../types";
 
-export type { ConversationTurn, DocumentChunk, RagPipelineConfig, RagPipelineResult };
-
-async function searchDocuments(
-  embedding: number[],
-  supabaseUrl: string,
-  supabaseAnonKey: string,
-  matchCount: number,
-  matchThreshold: number
-): Promise<DocumentChunk[]> {
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/match_documents`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({
-      query_embedding: embedding,
-      match_count: matchCount,
-      match_threshold: matchThreshold,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Supabase vector search failed: ${response.status}`);
-  }
-
-  return (await response.json()) as DocumentChunk[];
-}
+export type { ConversationTurn, DocumentChunk, RagPipelineConfig, RagPipelineResult, VectorStoreAdapter };
 
 const HANDOFF_PHRASES = [
   "i don't have",
@@ -82,15 +54,14 @@ export async function runRagPipeline(
   const {
     embeddingAdapter,
     llmAdapter,
-    supabaseUrl,
-    supabaseAnonKey,
+    vectorStore,
     matchCount = 8,
     matchThreshold = 0.5,
     conversationWindow = 6,
   } = config;
 
   const embedding = await embeddingAdapter(question);
-  const chunks = await searchDocuments(embedding, supabaseUrl, supabaseAnonKey, matchCount, matchThreshold);
+  const chunks = await vectorStore(embedding, { matchCount, matchThreshold });
 
   if (chunks.length === 0) {
     return { answer: "", sources: [], needsHumanHandoff: true };

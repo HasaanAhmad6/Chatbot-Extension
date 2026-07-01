@@ -2,6 +2,17 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.3.0] - 2026-07-01
+
+### Added
+- **Database Agnosticism**: Abstracted the vector database querying layer behind a flexible `VectorStoreAdapter` interface. This allows developers to plug in any custom database or third-party vector store (e.g. Pinecone, Qdrant, local memory list, custom Postgres pgvector instances).
+- **Supabase Vector Store Adapter**: Added `createSupabaseVectorStore(url, anonKey)` in `vectorStores.ts` to retain seamless plug-and-play integrations with Supabase.
+- **In-Memory Vector Store Adapter**: Added `createMemoryVectorStore(documents)` in `vectorStores.ts` providing an offline-capable, database-free matching adapter utilizing native cosine similarity calculations.
+- **Similarity Math Helpers**: Added `cosineSimilarity(a, b)` for vector geometry processing in node and server environments.
+
+### Changed
+- **Breaking API Configuration**: Removed raw `supabaseUrl` and `supabaseAnonKey` parameters from the `runRagPipeline` configuration contract, replacing them with a structured `vectorStore` adapter interface.
+
 ## [0.2.9] - 2026-06-30
 
 ### Added
