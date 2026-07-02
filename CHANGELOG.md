@@ -17,6 +17,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Chat View Specificity Bug**: Appended `.active` to `.chat-view` selector to prevent container rendering priority overriding the settings panel on first launch.
 - **Active Tab Permission**: Declared `"activeTab"` in `manifest.json` permissions to allow the sidepanel to fetch page details safely on open.
 - **Dynamic Tab Listeners**: Added tab activation and update listeners in the sidepanel UI to automatically refresh the crawled database state when the user navigates or switches tabs.
+- **ES Module Loading**: Declared `type="module"` on script tags in `sidepanel.html` and `offscreen.html` to allow ES import statements to execute without throwing syntax errors in the browser.
 
 ### Removed
 - **React Widget components**: Removed all legacy widget UI code (`src/components/`, `src/index.ts`).
