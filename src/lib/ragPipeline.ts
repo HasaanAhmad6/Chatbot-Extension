@@ -18,7 +18,11 @@ const HANDOFF_PHRASES = [
 
 function detectHandoff(answer: string): boolean {
   const lower = answer.toLowerCase();
-  return HANDOFF_PHRASES.some((phrase) => lower.includes(phrase));
+  return HANDOFF_PHRASES.some((phrase) => {
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\b${escaped}\\b`, "i");
+    return regex.test(lower);
+  });
 }
 
 function buildSystemPrompt(chunks: DocumentChunk[]): string {

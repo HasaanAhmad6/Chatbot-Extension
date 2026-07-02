@@ -1,6 +1,6 @@
 {
   "name": "@hasaan_6/rag-chatbot-widget",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "A self-contained RAG chatbot React widget. Plug in any embedding and LLM provider. Built-in Supabase pgvector search. Zero backend required.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

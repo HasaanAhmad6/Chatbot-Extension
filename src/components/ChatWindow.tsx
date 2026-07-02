@@ -71,7 +71,7 @@ export function ChatWindow({
           <MessageBubble key={message.id} message={message} />
         ))}
 
-        {loading && <TypingIndicator />}
+        {loading && messages[messages.length - 1]?.role === "user" && <TypingIndicator />}
 
         {!loading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].suggestedQuestions && (
           <div className="chatbot-suggested-questions">

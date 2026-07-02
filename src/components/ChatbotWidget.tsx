@@ -217,7 +217,7 @@ export default function ChatbotWidget({
                           sources: data.sources,
                           suggestedQuestions: data.suggestedQuestions,
                           needsHumanHandoff: data.needsHumanHandoff,
-                          content: msg.content || (data.needsHumanHandoff ? "" : fallbackMsg),
+                          content: msg.content || (data.needsHumanHandoff ? fallbackMsg : ""),
                         }
                       : msg
                   )

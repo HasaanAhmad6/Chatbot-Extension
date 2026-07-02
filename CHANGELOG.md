@@ -2,6 +2,14 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.3.5] - 2026-07-02
+
+### Fixed
+- **Ternary Inversion Bug**: Fixed the streaming handoff ternary condition in `ChatbotWidget.tsx` to correctly display the fallback message (rather than a blank bubble) when zero search matches trigger the handoff form.
+- **Typing Indicator UX overlap**: Restructured the loading check in `ChatWindow.tsx` to only render the typing indicator when the user is waiting for the initial server connection, immediately hiding the dots as soon as streaming tokens begin typing.
+- **TypeScript Async Iterator compilation**: Added the `"lib": ["ES2020", "DOM"]` configuration to `tsconfig.json` to resolve missing global type definition warnings for `AsyncIterableIterator` on compilation.
+- **Handoff Substring False-Positives**: Updated the handoff detection helper in `ragPipeline.ts` to utilize regex word boundary matches (`\b`), preventing false positive triggers on conversational vocabulary terms.
+
 ## [0.3.4] - 2026-07-01
 
 ### Added

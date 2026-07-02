@@ -246,6 +246,50 @@ export async function POST(req: Request) {
 
 ---
 
+## Real-Time Token Streaming (SSE)
+
+To enable live token typing (similar to ChatGPT) instead of waiting for the full response to load, pass `stream={true}` to the frontend widget:
+
+```tsx
+<ChatbotWidget chatEndpoint="/api/chat" stream={true} />
+```
+
+On your backend, use `runRagPipelineStream` combined with streaming adapter factories:
+
+```typescript
+import { 
+  runRagPipelineStream, 
+  createGeminiEmbeddingAdapter, 
+  createGeminiLLMStream 
+} from "@hasaan_6/rag-chatbot-widget/server";
+
+export async function POST(req: Request) {
+  const { question, conversation } = await req.json();
+
+  const stream = await runRagPipelineStream(question, conversation, {
+    embeddingAdapter: createGeminiEmbeddingAdapter(process.env.GEMINI_API_KEY!),
+    llmStreamAdapter: createGeminiLLMStream(process.env.GEMINI_API_KEY!),
+    supabaseUrl: process.env.SUPABASE_URL!,
+    supabaseAnonKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
+}
+```
+
+> [!NOTE]
+> Streaming is currently supported on compatible adapter factories: `createOpenAICompatibleLLMStream`, `createOpenAILLMStream`, and `createGeminiLLMStream` (including Ollama, DeepSeek, Together, Groq, Mistral).
+> 
+> Anthropic and Cohere currently only support non-streaming execution. If you use `createAnthropicLLMAdapter` or `createCohereLLMAdapter` on your backend, do not set `stream={true}` on the frontend widget.
+
+---
+
 ## Props Reference
 
 | Prop | Type | Default | Description |
@@ -262,6 +306,8 @@ export async function POST(req: Request) {
 | `leadFormConfig` | `LeadFormConfig` | *merged default* | Custom service options, budget ranges, and kicks. |
 | `onLeadSubmit` | `Function` | `undefined` | Callback function executed on local lead form submit. |
 | `leadEndpoint` | `string` | `undefined` | Server URL to POST the captured lead values JSON. |
+| `persistence` | `"none" \| "local" \| "session"` | `"none"` | Automatically saves and restores conversation history from the browser storage. |
+| `stream` | `boolean` | `false` | Enables Server-Sent Events (SSE) token streaming. (Requires streaming backend adapters). |
 
 ---
 
