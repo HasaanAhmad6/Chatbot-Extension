@@ -163,7 +163,7 @@ async function checkIndexState() {
   }
 
   // Get active tab details
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab || !tab.url) {
     showSystemMessage("Unable to retrieve tab details. Please refresh the page.");
     switchView("chat");
@@ -498,5 +498,17 @@ document.addEventListener("DOMContentLoaded", () => {
     selectProvider.dispatchEvent(event);
 
     checkIndexState();
+  });
+
+  // Track when active tab changes
+  chrome.tabs.onActivated.addListener(() => {
+    checkIndexState();
+  });
+
+  // Track when active tab navigates to a new URL
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url) {
+      checkIndexState();
+    }
   });
 });
