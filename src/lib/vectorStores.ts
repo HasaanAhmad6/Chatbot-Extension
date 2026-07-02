@@ -149,3 +149,81 @@ export function createSupabaseVectorStore(
     return vectorResults;
   };
 }
+
+/**
+ * Creates a vector store adapter that retrieves and queries document chunks
+ * cached in chrome.storage.local for a specific domain.
+ */
+export function createChromeStorageVectorStore(domain: string): VectorStoreAdapter {
+  return async (embedding: number[], options) => {
+    return new Promise((resolve) => {
+      if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.local) {
+        console.warn("[createChromeStorageVectorStore] chrome.storage.local is not available.");
+        resolve([]);
+        return;
+      }
+
+      const storageKey = `index:${domain}`;
+      chrome.storage.local.get([storageKey], (result: { [key: string]: any }) => {
+        const stored = result[storageKey];
+        if (!stored || !Array.isArray(stored.chunks)) {
+          resolve([]);
+          return;
+        }
+
+        const documents = stored.chunks as Array<{
+          content: string;
+          embedding: number[];
+          metadata?: Record<string, any>;
+        }>;
+
+        let results = documents
+          .map((doc, index) => {
+            const similarity = cosineSimilarity(embedding, doc.embedding);
+            return {
+              id: String(index),
+              content: doc.content,
+              metadata: doc.metadata || {},
+              similarity,
+            };
+          })
+          .filter((doc) => doc.similarity >= options.matchThreshold)
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, options.matchCount);
+
+        // Fallback keyword search
+        if (results.length === 0 && options.question) {
+          const stopWords = new Set(["what", "is", "a", "the", "an", "who", "where", "how", "why", "about", "he", "his", "her", "of", "to", "in", "and", "or", "for", "with", "on", "at", "by", "from", "tell", "me", "show", "explain", "describe", "give", "us", "i"]);
+          const queryWords = options.question
+            .toLowerCase()
+            .replace(/[^\w\s]/g, "")
+            .split(/\s+/)
+            .filter((w) => w.length > 1 && !stopWords.has(w));
+
+          if (queryWords.length > 0) {
+            results = documents
+              .map((doc, index) => {
+                const matches = queryWords.filter((w) => 
+                  new RegExp(`\\b${w}\\b`, "i").test(doc.content)
+                ).length;
+                return {
+                  id: String(index),
+                  content: doc.content,
+                  metadata: doc.metadata || {},
+                  similarity: options.matchThreshold + 0.1,
+                  matches,
+                };
+              })
+              .filter((doc) => doc.matches > 0)
+              .sort((a, b) => b.matches - a.matches)
+              .map(({ matches, ...rest }) => rest)
+              .slice(0, options.matchCount);
+          }
+        }
+
+        resolve(results);
+      });
+    });
+  };
+}
+
