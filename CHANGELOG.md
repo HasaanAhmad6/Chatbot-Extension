@@ -13,6 +13,12 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Chrome Storage Vector Store**: Added `createChromeStorageVectorStore` in `vectorStores.ts` to query locally-cached vectors with cosine similarity matching and fallback keyword matching.
 - **Bundling Integration**: Configured parallel tsup widget and extension compilation scripts and postbuild static asset copies.
 
+### Removed
+- **React Widget components**: Removed all legacy widget UI code (`src/components/`, `src/index.ts`).
+- **Server Entry points**: Deleted the node-based `src/server.ts` entrypoint.
+- **Supabase Persistence**: Stripped out `supabaseSetup.ts` SQL scripts and `createSupabaseVectorStore` from vector stores.
+- **NPM Package configs**: Pruned React peerDependencies and package properties from `package.json`.
+
 ## [0.3.5] - 2026-07-02
 
 ### Fixed

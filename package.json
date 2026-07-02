@@ -1,56 +1,25 @@
 {
-  "name": "@hasaan_6/rag-chatbot-widget",
-  "version": "0.3.5",
-  "description": "A self-contained RAG chatbot React widget. Plug in any embedding and LLM provider. Built-in Supabase pgvector search. Zero backend required.",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.mjs",
-      "require": "./dist/server.js"
-    },
-    "./dist/chatbot.css": "./dist/chatbot.css"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "CHANGELOG.md"
-  ],
+  "name": "rag-site-explorer-extension",
+  "version": "0.4.0",
+  "description": "Chrome extension to index public website pages and chat with them locally.",
   "license": "MIT",
   "keywords": [
-    "chatbot",
+    "chrome-extension",
     "rag",
-    "react",
-    "widget",
-    "supabase",
-    "pgvector",
+    "chatbot",
     "openai",
     "gemini",
-    "deepseek",
     "llm",
     "embedding"
   ],
   "scripts": {
     "build": "tsup",
     "postbuild": "node ./scripts/copy-assets.cjs",
-    "prepare": "npm run build",
     "dev": "tsup --watch",
     "test": "vitest run"
   },
-  "peerDependencies": {
-    "react": ">=17",
-    "react-dom": ">=17"
-  },
   "devDependencies": {
-    "@types/chrome": "^0.2.2",
-    "@types/react": "^18.0.0",
+    "@types/chrome": "^0.0.269",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vitest": "^4.1.9"
