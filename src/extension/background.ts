@@ -86,6 +86,133 @@ async function parseSitemap(origin: string): Promise<string[]> {
   }
 }
 
+// Unified Batch Embedding Helper utilizing API batch endpoints
+async function generateBatchEmbeddings(
+  texts: string[],
+  provider: string,
+  apiKey: string,
+  model: string
+): Promise<number[][]> {
+  const batchSize = provider === "gemini" ? 50 : 100;
+  const results: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const chunk = texts.slice(i, i + batchSize);
+    
+    let success = false;
+    let attempts = 4;
+    let delay = 1000;
+    
+    while (!success && attempts > 0) {
+      try {
+        let embeddings: number[][] = [];
+        
+        if (provider === "gemini") {
+          const geminiModel = model || "gemini-embedding-001";
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:batchEmbedContents?key=${apiKey}`;
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requests: chunk.map((text) => ({
+                model: `models/${geminiModel}`,
+                content: { parts: [{ text }] },
+              })),
+            }),
+          });
+          
+          if (!response.ok) {
+            if (response.status === 429) {
+              throw new Error("429");
+            }
+            throw new Error(`Gemini batch embedding failed: ${response.statusText}`);
+          }
+          const data = await response.json();
+          if (!data.embeddings || !Array.isArray(data.embeddings)) {
+            throw new Error("Invalid response format from Gemini embedding API");
+          }
+          embeddings = data.embeddings.map((e: any) => e.values);
+          
+        } else if (provider === "openai") {
+          const openAIModel = model || "text-embedding-3-small";
+          const url = "https://api.openai.com/v1/embeddings";
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: openAIModel,
+              input: chunk,
+            }),
+          });
+          
+          if (!response.ok) {
+            if (response.status === 429) {
+              throw new Error("429");
+            }
+            throw new Error(`OpenAI batch embedding failed: ${response.statusText}`);
+          }
+          const data = await response.json();
+          embeddings = data.data
+            .sort((a: any, b: any) => a.index - b.index)
+            .map((d: any) => d.embedding);
+            
+        } else if (provider === "cohere") {
+          const cohereModel = model || "embed-english-v3.0";
+          const url = "https://api.cohere.com/v2/embed";
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: cohereModel,
+              texts: chunk,
+              input_type: "search_document",
+              embedding_types: ["float"],
+            }),
+          });
+          
+          if (!response.ok) {
+            if (response.status === 429) {
+              throw new Error("429");
+            }
+            throw new Error(`Cohere batch embedding failed: ${response.statusText}`);
+          }
+          const data = await response.json();
+          embeddings = data.embeddings.float;
+        } else {
+          throw new Error(`Unsupported provider for batch embedding: ${provider}`);
+        }
+        
+        results.push(...embeddings);
+        success = true;
+      } catch (err: any) {
+        attempts--;
+        if (err.message === "429") {
+          console.warn(`[BatchEmbed] 429 rate limit hit. Retrying in ${delay}ms... Attempts left: ${attempts}`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2.5; // Exponential backoff
+        } else {
+          throw err;
+        }
+      }
+    }
+    
+    if (!success) {
+      throw new Error(`Failed to generate embeddings after multiple retries due to rate limits.`);
+    }
+
+    // Brief delay between batches to respect RPM limits
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  return results;
+}
+
 // Main crawl and index runner
 async function runCrawlAndIndex(domain: string, startUrl: string) {
   const origin = new URL(startUrl).origin;
@@ -241,48 +368,32 @@ async function runCrawlAndIndex(domain: string, startUrl: string) {
       throw new Error("Missing API key. Please check your settings.");
     }
 
-    // Initialize adapter based on provider
-    let embedAdapter;
-    if (provider === "gemini") {
-      embedAdapter = createGeminiEmbeddingAdapter(apiKey);
-    } else if (provider === "openai") {
-      embedAdapter = createOpenAIEmbeddingAdapter(apiKey, embeddingModel || "text-embedding-3-small");
-    } else if (provider === "cohere") {
-      embedAdapter = createCohereEmbeddingAdapter(apiKey, embeddingModel || "embed-english-v3.0");
-    } else {
-      // Default fallback
-      embedAdapter = createGeminiEmbeddingAdapter(apiKey);
-    }
-
     const finalChunks: Array<{ content: string; embedding: number[]; metadata: { url: string; title: string } }> = [];
     
-    // Batch embedding generation with concurrency limit (e.g. 5 at a time)
-    const concurrencyLimit = 5;
-    for (let i = 0; i < chunksToEmbed.length; i += concurrencyLimit) {
-      const batch = chunksToEmbed.slice(i, i + concurrencyLimit);
+    // Batch embedding generation
+    const batchSize = provider === "gemini" ? 50 : 100;
+    
+    for (let i = 0; i < chunksToEmbed.length; i += batchSize) {
+      const batch = chunksToEmbed.slice(i, i + batchSize);
       
-      state.message = `Embedding chunks ${i + 1} to ${Math.min(i + concurrencyLimit, chunksToEmbed.length)} of ${chunksToEmbed.length}...`;
+      state.message = `Embedding chunks ${i + 1} to ${Math.min(i + batchSize, chunksToEmbed.length)} of ${chunksToEmbed.length}...`;
       notifyChange();
 
-      await Promise.all(
-        batch.map(async (item) => {
-          try {
-            const embedding = await embedAdapter(item.content);
-            finalChunks.push({
-              content: item.content,
-              embedding,
-              metadata: item.metadata,
-            });
-          } catch (err) {
-            console.error("Embedding generation failed for chunk:", err);
-          }
-        })
-      );
+      const batchTexts = batch.map((item) => item.content);
+      const embeddings = await generateBatchEmbeddings(batchTexts, provider, apiKey, embeddingModel || "");
+      
+      for (let j = 0; j < batch.length; j++) {
+        if (embeddings[j]) {
+          finalChunks.push({
+            content: batch[j].content,
+            embedding: embeddings[j],
+            metadata: batch[j].metadata,
+          });
+        }
+      }
       
       state.progress = finalChunks.length;
       notifyChange();
-      // Brief pause to avoid rate limits
-      await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
     if (finalChunks.length === 0) {
