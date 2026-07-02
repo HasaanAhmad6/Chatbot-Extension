@@ -2,6 +2,17 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.4.0] - 2026-07-02
+
+### Added
+- **Manifest V3 Chrome Extension**: Initial extension release files including `manifest.json`.
+- **Side Panel Interface**: Implemented `chrome.sidePanel` based layout in `sidepanel.html` and `sidepanel.ts` featuring settings, active crawl progress bars, local RAG pipeline routing, and a customized dark theme.
+- **Background Service Worker Crawl Engine**: Added `background.ts` which coordinates site discovery via `sitemap.xml` parsing, respecting `robots.txt` exclusion rules, executing crawler loops with fetch rate limits, and caching vector indexes in `chrome.storage.local`.
+- **Offscreen DOM Parser**: Added `offscreen.html` and `offscreen.ts` to parse HTML, scrape main/article contents, strip headers/footers/nav boilerplates, and extract links.
+- **Word-Boundary Chunker**: Implemented character sliding-window splitting in `chunker.ts` to improve embedding quality.
+- **Chrome Storage Vector Store**: Added `createChromeStorageVectorStore` in `vectorStores.ts` to query locally-cached vectors with cosine similarity matching and fallback keyword matching.
+- **Bundling Integration**: Configured parallel tsup widget and extension compilation scripts and postbuild static asset copies.
+
 ## [0.3.5] - 2026-07-02
 
 ### Fixed
