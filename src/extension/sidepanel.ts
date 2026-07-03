@@ -460,11 +460,16 @@ ${pagesListSummary}`;
     updateTypingText(typingEl, "Synthesizing answer...");
 
     const contextContext = retrievedPages.map((page, idx) => {
+      // Limit page text length to prevent TPM (Tokens Per Minute) limit exhaustion on Gemini Free Tier
+      const cleanText = page.text.length > 12000
+        ? page.text.slice(0, 12000) + "\n... [Content truncated to prevent rate limit limits] ..."
+        : page.text;
+
       return `[Source ${idx + 1}]
 URL: ${page.url}
 Title: ${page.title}
 Content:
-${page.text}`;
+${cleanText}`;
     }).join("\n\n---\n\n");
 
     const generatorSystemPrompt = `You are a friendly, helpful website assistant representing ${currentDomain}. 
@@ -505,7 +510,12 @@ ${contextContext}`;
   } catch (err) {
     console.error("RAG pipeline failed:", err);
     typingEl.remove();
-    appendMessage("assistant", `Sorry, I encountered an error: ${err instanceof Error ? err.message : String(err)}`);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("429")) {
+      appendMessage("assistant", "I hit the Gemini API rate limit (HTTP 429). This happens on Gemini's Free Tier when asking multiple questions quickly or if the website content is very large. Please wait 10–15 seconds and try again!");
+    } else {
+      appendMessage("assistant", `Sorry, I encountered an error: ${errMsg}`);
+    }
   }
 }
 

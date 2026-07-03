@@ -12,6 +12,8 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Page Content Caching**: Caches parsed page content locally under `cache:${url}` for 24 hours to eliminate redundant network requests.
 - **Sanity Test Suite**: Added a basic testing module for the new code architecture in `sanity.test.ts`.
 - **Forced Re-crawling Button**: Added an interactive `#btn-reindex` button in the sidebar header to clear local directory caches and force a fresh crawl on demand.
+- **TPM Rate Limit Mitigation**: Truncated fetched webpage text contents to a maximum of 12,000 characters per page during context assembly to prevent exceeding the 40,000 Tokens Per Minute (TPM) API limits on Gemini's Free Tier.
+- **Friendly Rate-Limit Error Handling**: Intercepted HTTP 429 errors from the LLM adapter to display a clean, actionable message advising the user to wait 10-15 seconds for quota reset.
 
 ### Removed
 - **Vector Embedding RAG**: Deleted legacy chunker (`chunker.ts`), local vector stores (`vectorStores.ts`), and the RAG pipeline wrapper (`ragPipeline.ts`) to resolve 429 API rate limits completely.
