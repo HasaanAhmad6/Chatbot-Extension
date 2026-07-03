@@ -7,6 +7,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 ### Added
 - **Agentic Link Router**: Integrated an LLM-based Link Router in `sidepanel.ts` to analyze questions and determine which 2–3 site pages contain the answers.
 - **Lightweight Directory Indexing**: Rebuilt crawler in `background.ts` to map domain pages (URLs, titles, and `<h1>`-`<h3>` headings) in under 2 seconds.
+- **Recursive Queue-Based Crawler**: Updated the background crawl engine to run a recursive queue-based crawl (BFS) that extracts links from mapped pages to discover nested sub-pages (e.g., fee structure and program details) up to 40 pages deep. Seeded the crawl queue with sitemap URLs when `sitemap.xml` is present.
 - **Dynamic Content Fetcher**: Added background fetches to parse and clean HTML via `offscreen.ts` on demand.
 - **Page Content Caching**: Caches parsed page content locally under `cache:${url}` for 24 hours to eliminate redundant network requests.
 - **Sanity Test Suite**: Added a basic testing module for the new code architecture in `sanity.test.ts`.

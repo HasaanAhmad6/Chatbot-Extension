@@ -85,14 +85,14 @@ async function parseSitemap(origin: string): Promise<string[]> {
   }
 }
 
-// Main crawl and index directory builder
+// Main recursive queue-based crawl and directory builder
 async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
   const origin = new URL(startUrl).origin;
   const state: CrawlState = {
     status: "crawling",
     progress: 0,
     total: 0,
-    message: "Initializing site directory map...",
+    message: "Initializing site crawler...",
     domain,
   };
   crawlStates.set(domain, state);
@@ -110,76 +110,55 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
 
   try {
     await createOffscreenDocument();
-
     const disallowed = await getDisallowedPaths(origin);
-    let urlsToCrawl = await parseSitemap(origin);
 
-    // If sitemap didn't return any URLs, fall back to parsing home page links
-    if (urlsToCrawl.length === 0) {
-      state.message = "Sitemap.xml not found. Extracting links from homepage...";
-      notifyChange();
+    const visited = new Set<string>();
+    const queue: string[] = [startUrl];
+    const directory: PageMetadata[] = [];
+    const maxPages = 40;
 
-      const response = await fetch(startUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch homepage: ${response.statusText}`);
-      }
-      const html = await response.text();
-      
-      const res = await chrome.runtime.sendMessage({
-        target: "offscreen",
-        type: "parse-metadata",
-        data: { html, url: startUrl },
-      });
-
-      if (res && res.success && Array.isArray(res.links)) {
-        urlsToCrawl = res.links;
-      }
-    }
-
-    // Filter URLs (same-origin, not disallowed, valid scheme)
-    let filteredUrls = Array.from(new Set(urlsToCrawl))
-      .filter((urlStr) => {
+    // Check for sitemap to pre-populate queue
+    state.message = "Checking for sitemap.xml...";
+    notifyChange();
+    const sitemapUrls = await parseSitemap(origin);
+    if (sitemapUrls.length > 0) {
+      for (const url of sitemapUrls) {
         try {
-          const u = new URL(urlStr);
-          return (
-            u.origin === origin &&
-            (u.protocol === "http:" || u.protocol === "https:") &&
-            isUrlAllowed(urlStr, disallowed)
-          );
-        } catch {
-          return false;
-        }
-      })
-      .slice(0, 30); // Cap at 30 pages max
-
-    // Ensure start URL is included
-    if (!filteredUrls.includes(startUrl)) {
-      filteredUrls.unshift(startUrl);
-    }
-    filteredUrls = filteredUrls.slice(0, 30);
-
-    if (filteredUrls.length === 0) {
-      throw new Error("No public pages discovered on this domain.");
+          const u = new URL(url);
+          const cleanUrl = u.origin + u.pathname;
+          if (isUrlAllowed(cleanUrl, disallowed) && !queue.includes(cleanUrl)) {
+            queue.push(cleanUrl);
+          }
+        } catch {}
+      }
     }
 
-    state.total = filteredUrls.length;
-    state.message = `Mapping metadata for ${filteredUrls.length} pages...`;
+    state.total = maxPages;
     notifyChange();
 
-    const directory: PageMetadata[] = [];
-    const concurrencyLimit = 5;
-
-    // Fetch page metadata in batches of 5 in parallel to build directory quickly
-    for (let i = 0; i < filteredUrls.length; i += concurrencyLimit) {
-      const batch = filteredUrls.slice(i, i + concurrencyLimit);
+    while (queue.length > 0 && directory.length < maxPages) {
+      // Dequeue a batch of up to 4 URLs to fetch in parallel
+      const batch = queue.splice(0, Math.min(4, maxPages - directory.length));
       
       await Promise.all(
         batch.map(async (url) => {
+          // Normalize URL by removing hash and query parameters
+          let cleanUrl = url;
           try {
+            const u = new URL(url);
+            cleanUrl = u.origin + u.pathname;
+          } catch {}
+
+          if (visited.has(cleanUrl)) return;
+          visited.add(cleanUrl);
+
+          try {
+            const pathName = new URL(url).pathname;
+            state.message = `Crawling: ${pathName.length > 15 ? pathName.slice(0, 15) + "..." : pathName}...`;
+            notifyChange();
+
             const response = await fetch(url);
-            if (!response.ok) {
-              return;
-            }
+            if (!response.ok) return;
             const html = await response.text();
 
             const metaResult = await chrome.runtime.sendMessage({
@@ -195,23 +174,41 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
                 description: metaResult.description || "",
                 headings: metaResult.headings || [],
               });
+
+              // Extract and add new links to the queue
+              if (Array.isArray(metaResult.links)) {
+                for (const link of metaResult.links) {
+                  try {
+                    const u = new URL(link);
+                    const linkClean = u.origin + u.pathname;
+                    if (
+                      u.origin === origin &&
+                      (u.protocol === "http:" || u.protocol === "https:") &&
+                      isUrlAllowed(linkClean, disallowed) &&
+                      !visited.has(linkClean) &&
+                      !queue.includes(linkClean)
+                    ) {
+                      queue.push(linkClean);
+                    }
+                  } catch {}
+                }
+              }
             }
           } catch (err) {
-            console.warn(`Error mapping page ${url}:`, err);
+            console.warn(`Failed to crawl ${url}:`, err);
           }
         })
       );
 
       state.progress = directory.length;
-      state.message = `Mapped ${directory.length} of ${filteredUrls.length} pages...`;
       notifyChange();
-      
-      // Delay to respect rate limits
-      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Brief delay to respect rate limits
+      await new Promise((resolve) => setTimeout(resolve, 400));
     }
 
     if (directory.length === 0) {
-      throw new Error("Could not extract metadata from any discovered pages.");
+      throw new Error("Could not crawl any pages on this domain.");
     }
 
     // Store directory map locally
