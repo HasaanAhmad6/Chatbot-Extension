@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rag Site Explorer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Index website pages and chat with the whole domain locally using your own AI provider keys.",
   "permissions": [
     "sidePanel",

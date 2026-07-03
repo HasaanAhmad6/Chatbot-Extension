@@ -2,6 +2,18 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.5.0] - 2026-07-03
+
+### Added
+- **Agentic Link Router**: Integrated an LLM-based Link Router in `sidepanel.ts` to analyze questions and determine which 2–3 site pages contain the answers.
+- **Lightweight Directory Indexing**: Rebuilt crawler in `background.ts` to map domain pages (URLs, titles, and `<h1>`-`<h3>` headings) in under 2 seconds.
+- **Dynamic Content Fetcher**: Added background fetches to parse and clean HTML via `offscreen.ts` on demand.
+- **Page Content Caching**: Caches parsed page content locally under `cache:${url}` for 24 hours to eliminate redundant network requests.
+- **Sanity Test Suite**: Added a basic testing module for the new code architecture in `sanity.test.ts`.
+
+### Removed
+- **Vector Embedding RAG**: Deleted legacy chunker (`chunker.ts`), local vector stores (`vectorStores.ts`), and the RAG pipeline wrapper (`ragPipeline.ts`) to resolve 429 API rate limits completely.
+
 ## [0.4.0] - 2026-07-02
 
 ### Added

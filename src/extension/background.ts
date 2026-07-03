@@ -1,16 +1,16 @@
-import { chunkText } from "../lib/chunker";
-import {
-  createGeminiEmbeddingAdapter,
-  createOpenAIEmbeddingAdapter,
-  createCohereEmbeddingAdapter,
-} from "../lib/adapterFactories";
-
 interface CrawlState {
-  status: "idle" | "crawling" | "embedding" | "completed" | "error";
+  status: "idle" | "crawling" | "completed" | "error";
   progress: number;
   total: number;
   message: string;
   domain: string;
+}
+
+interface PageMetadata {
+  url: string;
+  title: string;
+  description: string;
+  headings: string[];
 }
 
 const crawlStates = new Map<string, CrawlState>();
@@ -27,7 +27,7 @@ async function createOffscreenDocument() {
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
     reasons: [chrome.offscreen.Reason.DOM_PARSER],
-    justification: "DOM parser required to extract text and links from crawled pages",
+    justification: "DOM parser required to extract metadata and page text",
   });
 }
 
@@ -56,7 +56,6 @@ function isUrlAllowed(urlStr: string, disallowedPaths: string[]): boolean {
   try {
     const url = new URL(urlStr);
     return !disallowedPaths.some((path) => {
-      // Clean wildcards or match prefixes
       const cleanPath = path.replace(/\*/g, "");
       return url.pathname.startsWith(cleanPath);
     });
@@ -86,141 +85,14 @@ async function parseSitemap(origin: string): Promise<string[]> {
   }
 }
 
-// Unified Batch Embedding Helper utilizing API batch endpoints
-async function generateBatchEmbeddings(
-  texts: string[],
-  provider: string,
-  apiKey: string,
-  model: string
-): Promise<number[][]> {
-  const batchSize = provider === "gemini" ? 50 : 100;
-  const results: number[][] = [];
-
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const chunk = texts.slice(i, i + batchSize);
-    
-    let success = false;
-    let attempts = 4;
-    let delay = 1000;
-    
-    while (!success && attempts > 0) {
-      try {
-        let embeddings: number[][] = [];
-        
-        if (provider === "gemini") {
-          const geminiModel = model || "gemini-embedding-001";
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:batchEmbedContents?key=${apiKey}`;
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              requests: chunk.map((text) => ({
-                model: `models/${geminiModel}`,
-                content: { parts: [{ text }] },
-              })),
-            }),
-          });
-          
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error("429");
-            }
-            throw new Error(`Gemini batch embedding failed: ${response.statusText}`);
-          }
-          const data = await response.json();
-          if (!data.embeddings || !Array.isArray(data.embeddings)) {
-            throw new Error("Invalid response format from Gemini embedding API");
-          }
-          embeddings = data.embeddings.map((e: any) => e.values);
-          
-        } else if (provider === "openai") {
-          const openAIModel = model || "text-embedding-3-small";
-          const url = "https://api.openai.com/v1/embeddings";
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-              model: openAIModel,
-              input: chunk,
-            }),
-          });
-          
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error("429");
-            }
-            throw new Error(`OpenAI batch embedding failed: ${response.statusText}`);
-          }
-          const data = await response.json();
-          embeddings = data.data
-            .sort((a: any, b: any) => a.index - b.index)
-            .map((d: any) => d.embedding);
-            
-        } else if (provider === "cohere") {
-          const cohereModel = model || "embed-english-v3.0";
-          const url = "https://api.cohere.com/v2/embed";
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-              model: cohereModel,
-              texts: chunk,
-              input_type: "search_document",
-              embedding_types: ["float"],
-            }),
-          });
-          
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error("429");
-            }
-            throw new Error(`Cohere batch embedding failed: ${response.statusText}`);
-          }
-          const data = await response.json();
-          embeddings = data.embeddings.float;
-        } else {
-          throw new Error(`Unsupported provider for batch embedding: ${provider}`);
-        }
-        
-        results.push(...embeddings);
-        success = true;
-      } catch (err: any) {
-        attempts--;
-        if (err.message === "429") {
-          console.warn(`[BatchEmbed] 429 rate limit hit. Retrying in ${delay}ms... Attempts left: ${attempts}`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 2.5; // Exponential backoff
-        } else {
-          throw err;
-        }
-      }
-    }
-    
-    if (!success) {
-      throw new Error(`Failed to generate embeddings after multiple retries due to rate limits.`);
-    }
-
-    // Brief delay between batches to respect RPM limits
-    await new Promise((resolve) => setTimeout(resolve, 300));
-  }
-
-  return results;
-}
-
-// Main crawl and index runner
-async function runCrawlAndIndex(domain: string, startUrl: string) {
+// Main crawl and index directory builder
+async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
   const origin = new URL(startUrl).origin;
   const state: CrawlState = {
     status: "crawling",
     progress: 0,
     total: 0,
-    message: "Initializing crawler...",
+    message: "Initializing site directory map...",
     domain,
   };
   crawlStates.set(domain, state);
@@ -230,7 +102,7 @@ async function runCrawlAndIndex(domain: string, startUrl: string) {
       type: "CRAWL_STATUS_UPDATE",
       data: state,
     }).catch(() => {
-      // Sidebar might be closed, ignore messaging errors
+      // Sidebar might be closed
     });
   };
 
@@ -242,20 +114,20 @@ async function runCrawlAndIndex(domain: string, startUrl: string) {
     const disallowed = await getDisallowedPaths(origin);
     let urlsToCrawl = await parseSitemap(origin);
 
-    // Sitemap didn't return any URLs, fall back to parsing home page links
+    // If sitemap didn't return any URLs, fall back to parsing home page links
     if (urlsToCrawl.length === 0) {
       state.message = "Sitemap.xml not found. Extracting links from homepage...";
       notifyChange();
 
       const response = await fetch(startUrl);
       if (!response.ok) {
-        throw new Error(`Failed to fetch home page: ${response.statusText}`);
+        throw new Error(`Failed to fetch homepage: ${response.statusText}`);
       }
       const html = await response.text();
       
       const res = await chrome.runtime.sendMessage({
         target: "offscreen",
-        type: "extract-links",
+        type: "parse-metadata",
         data: { html, url: startUrl },
       });
 
@@ -280,146 +152,122 @@ async function runCrawlAndIndex(domain: string, startUrl: string) {
       })
       .slice(0, 30); // Cap at 30 pages max
 
-    // Ensure start URL is included if not already there
+    // Ensure start URL is included
     if (!filteredUrls.includes(startUrl)) {
       filteredUrls.unshift(startUrl);
     }
     filteredUrls = filteredUrls.slice(0, 30);
 
     if (filteredUrls.length === 0) {
-      throw new Error("No public crawler-allowed pages found on this domain.");
+      throw new Error("No public pages discovered on this domain.");
     }
 
     state.total = filteredUrls.length;
-    state.message = `Discovered ${filteredUrls.length} pages. Crawling content...`;
+    state.message = `Mapping metadata for ${filteredUrls.length} pages...`;
     notifyChange();
 
-    const pagesData: Array<{ url: string; text: string; title: string }> = [];
+    const directory: PageMetadata[] = [];
+    const concurrencyLimit = 5;
 
-    for (const url of filteredUrls) {
-      state.message = `Crawling: ${url}`;
-      notifyChange();
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.warn(`Failed to fetch page ${url}: ${response.statusText}`);
-          state.progress++;
-          continue;
-        }
-        const html = await response.text();
-
-        const parseResult = await chrome.runtime.sendMessage({
-          target: "offscreen",
-          type: "parse-html",
-          data: { html, url },
-        });
-
-        if (parseResult && parseResult.success) {
-          pagesData.push({
-            url,
-            text: parseResult.text,
-            title: parseResult.title || url,
-          });
-        }
-      } catch (err) {
-        console.warn(`Error crawling page ${url}:`, err);
-      }
-
-      state.progress++;
-      // Rate-limit delay (300-500ms)
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-
-    if (pagesData.length === 0) {
-      throw new Error("Could not extract readable content from any of the crawled pages.");
-    }
-
-    // Chunking text
-    state.status = "embedding";
-    state.progress = 0;
-    state.message = "Preparing text chunks...";
-    notifyChange();
-
-    const chunksToEmbed: Array<{ content: string; metadata: { url: string; title: string } }> = [];
-    for (const page of pagesData) {
-      const chunks = chunkText(page.text, { chunkSize: 800, chunkOverlap: 150 });
-      for (const content of chunks) {
-        chunksToEmbed.push({
-          content,
-          metadata: { url: page.url, title: page.title },
-        });
-      }
-    }
-
-    if (chunksToEmbed.length === 0) {
-      throw new Error("Text chunking yielded zero valid content blocks.");
-    }
-
-    state.total = chunksToEmbed.length;
-    state.message = `Generated ${chunksToEmbed.length} chunks. Creating embeddings...`;
-    notifyChange();
-
-    // Fetch API Settings
-    const settings = await chrome.storage.local.get(["provider", "apiKey", "embeddingModel"]);
-    const { provider, apiKey, embeddingModel } = settings;
-
-    if (!apiKey) {
-      throw new Error("Missing API key. Please check your settings.");
-    }
-
-    const finalChunks: Array<{ content: string; embedding: number[]; metadata: { url: string; title: string } }> = [];
-    
-    // Batch embedding generation
-    const batchSize = provider === "gemini" ? 50 : 100;
-    
-    for (let i = 0; i < chunksToEmbed.length; i += batchSize) {
-      const batch = chunksToEmbed.slice(i, i + batchSize);
+    // Fetch page metadata in batches of 5 in parallel to build directory quickly
+    for (let i = 0; i < filteredUrls.length; i += concurrencyLimit) {
+      const batch = filteredUrls.slice(i, i + concurrencyLimit);
       
-      state.message = `Embedding chunks ${i + 1} to ${Math.min(i + batchSize, chunksToEmbed.length)} of ${chunksToEmbed.length}...`;
-      notifyChange();
+      await Promise.all(
+        batch.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            if (!response.ok) {
+              return;
+            }
+            const html = await response.text();
 
-      const batchTexts = batch.map((item) => item.content);
-      const embeddings = await generateBatchEmbeddings(batchTexts, provider, apiKey, embeddingModel || "");
-      
-      for (let j = 0; j < batch.length; j++) {
-        if (embeddings[j]) {
-          finalChunks.push({
-            content: batch[j].content,
-            embedding: embeddings[j],
-            metadata: batch[j].metadata,
-          });
-        }
-      }
-      
-      state.progress = finalChunks.length;
+            const metaResult = await chrome.runtime.sendMessage({
+              target: "offscreen",
+              type: "parse-metadata",
+              data: { html, url },
+            });
+
+            if (metaResult && metaResult.success) {
+              directory.push({
+                url,
+                title: metaResult.title || url,
+                description: metaResult.description || "",
+                headings: metaResult.headings || [],
+              });
+            }
+          } catch (err) {
+            console.warn(`Error mapping page ${url}:`, err);
+          }
+        })
+      );
+
+      state.progress = directory.length;
+      state.message = `Mapped ${directory.length} of ${filteredUrls.length} pages...`;
       notifyChange();
+      
+      // Delay to respect rate limits
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    if (finalChunks.length === 0) {
-      throw new Error("Failed to generate vector embeddings for any of the content chunks.");
+    if (directory.length === 0) {
+      throw new Error("Could not extract metadata from any discovered pages.");
     }
 
-    // Save index to storage
-    const storageKey = `index:${domain}`;
+    // Store directory map locally
+    const directoryKey = `directory:${domain}`;
     await chrome.storage.local.set({
-      [storageKey]: {
+      [directoryKey]: {
         domain,
         timestamp: Date.now(),
-        pageCount: pagesData.length,
-        chunks: finalChunks,
+        pages: directory,
       },
     });
 
     state.status = "completed";
-    state.message = `Successfully indexed ${pagesData.length} pages into ${finalChunks.length} searchable vectors!`;
+    state.message = `Successfully mapped directory of ${directory.length} pages!`;
     notifyChange();
 
   } catch (err) {
-    console.error("Crawling/indexing error:", err);
+    console.error("Directory building error:", err);
     state.status = "error";
     state.message = err instanceof Error ? err.message : String(err);
     notifyChange();
+  }
+}
+
+// Fetch and clean a single page (on-demand loading)
+async function fetchAndCleanPage(url: string): Promise<{ success: boolean; text?: string; title?: string; error?: string }> {
+  try {
+    await createOffscreenDocument();
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.statusText}`);
+    }
+    const html = await response.text();
+
+    const parseResult = await chrome.runtime.sendMessage({
+      target: "offscreen",
+      type: "parse-html",
+      data: { html, url },
+    });
+
+    if (parseResult && parseResult.success) {
+      return {
+        success: true,
+        text: parseResult.text,
+        title: parseResult.title || url,
+      };
+    } else {
+      throw new Error(parseResult?.error || "Parsing failed");
+    }
+  } catch (err) {
+    console.error(`Failed to load page content for ${url}:`, err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -431,7 +279,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "START_CRAWL") {
     const { domain, url } = message.data;
-    runCrawlAndIndex(domain, url);
+    runCrawlAndBuildDirectory(domain, url);
     sendResponse({ success: true });
     return true;
   }
@@ -442,11 +290,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       status: "idle",
       progress: 0,
       total: 0,
-      message: "No indexing jobs currently running.",
+      message: "No directory jobs currently running.",
       domain,
     };
     sendResponse(state);
     return true;
+  }
+
+  if (message.type === "FETCH_PAGE") {
+    const { url } = message.data;
+    fetchAndCleanPage(url).then(sendResponse);
+    return true; // Keep channel open for async response
   }
 
   return false;

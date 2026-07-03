@@ -4,7 +4,7 @@
  */
 interface ParseHtmlMessage {
   target: "offscreen";
-  type: "parse-html" | "extract-links";
+  type: "parse-html" | "parse-metadata";
   data: {
     html: string;
     url: string;
@@ -16,6 +16,7 @@ chrome.runtime.onMessage.addListener((message: ParseHtmlMessage, sender, sendRes
     return false;
   }
 
+  // Action 1: Parse and clean visible page content (for chat RAG context)
   if (message.type === "parse-html") {
     try {
       const { html, url } = message.data;
@@ -24,7 +25,7 @@ chrome.runtime.onMessage.addListener((message: ParseHtmlMessage, sender, sendRes
 
       const title = doc.title || "";
 
-      // List of boilerplate selectors to strip out to improve similarity scores
+      // List of boilerplate selectors to strip out to improve context quality
       const selectorToStrip = [
         "script",
         "style",
@@ -81,13 +82,33 @@ chrome.runtime.onMessage.addListener((message: ParseHtmlMessage, sender, sendRes
     return true;
   }
 
-  if (message.type === "extract-links") {
+  // Action 2: Parse page metadata & links (for lightweight indexing during crawl setup)
+  if (message.type === "parse-metadata") {
     try {
       const { html, url } = message.data;
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
       const baseUrl = new URL(url);
 
+      const title = doc.title || "";
+
+      // Gather page headings (h1, h2, h3)
+      const headings: string[] = [];
+      doc.querySelectorAll("h1, h2, h3").forEach((el) => {
+        const text = el.textContent?.trim();
+        if (text && text.length > 2 && text.length < 150) {
+          headings.push(text);
+        }
+      });
+
+      // Gather meta description
+      let description = "";
+      const metaDesc = doc.querySelector("meta[name='description']");
+      if (metaDesc) {
+        description = metaDesc.getAttribute("content")?.trim() || "";
+      }
+
+      // Gather links
       const links: string[] = [];
       doc.querySelectorAll("a[href]").forEach((el) => {
         const href = el.getAttribute("href");
@@ -100,7 +121,13 @@ chrome.runtime.onMessage.addListener((message: ParseHtmlMessage, sender, sendRes
         }
       });
 
-      sendResponse({ success: true, links });
+      sendResponse({
+        success: true,
+        title,
+        description,
+        headings: Array.from(new Set(headings)).slice(0, 15), // Cap headings to avoid bloat
+        links: Array.from(new Set(links)),
+      });
     } catch (error) {
       sendResponse({
         success: false,

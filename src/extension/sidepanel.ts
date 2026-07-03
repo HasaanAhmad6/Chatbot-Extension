@@ -1,22 +1,11 @@
-import { 
-  runRagPipeline, 
-  runRagPipelineStream 
-} from "../lib/ragPipeline";
-import { 
-  createChromeStorageVectorStore 
-} from "../lib/vectorStores";
 import {
-  createGeminiEmbeddingAdapter,
-  createOpenAIEmbeddingAdapter,
-  createCohereEmbeddingAdapter,
   createGeminiLLMAdapter,
   createOpenAILLMAdapter,
   createAnthropicLLMAdapter,
   createDeepSeekLLMAdapter,
   createGroqLLMAdapter,
-  createCohereEmbeddingAdapter as createCohereLLMAdapter, // wait, cohere llm is openai compatible
-  createOpenAICompatibleLLMAdapter,
-  createOllamaLLMAdapter
+  createOllamaLLMAdapter,
+  createOpenAICompatibleLLMAdapter
 } from "../lib/adapterFactories";
 import type { ConversationTurn, ChatMessage } from "../types";
 
@@ -44,7 +33,7 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; embeddingModel: string;
   },
   deepseek: {
     model: "deepseek-chat",
-    embeddingModel: "text-embedding-3-small", // DeepSeek has no embed API; default to OpenAI style
+    embeddingModel: "text-embedding-3-small",
     keyLabel: "DeepSeek API Key",
   },
   groq: {
@@ -130,7 +119,6 @@ btnSaveSettings.addEventListener("click", () => {
     embeddingModel,
     setupCompleted: true,
   }, () => {
-    // Determine next step
     checkIndexState();
   });
 });
@@ -153,16 +141,14 @@ function switchView(view: "settings" | "indexing" | "chat") {
   }
 }
 
-// Check index cache state or active crawls
+// Check index directory status or active crawls
 async function checkIndexState() {
-  // Retrieve settings
   const settings = await chrome.storage.local.get(["setupCompleted", "provider", "apiKey"]);
   if (!settings.setupCompleted) {
     switchView("settings");
     return;
   }
 
-  // Get active tab details
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab || !tab.url) {
     showSystemMessage("Unable to retrieve tab details. Please refresh the page.");
@@ -176,14 +162,14 @@ async function checkIndexState() {
     currentDomain = urlObj.hostname;
 
     if (!currentDomain || urlObj.protocol.startsWith("chrome")) {
-      showSystemMessage("RAG Site Explorer cannot run on browser settings or system pages.");
+      showSystemMessage("Agentic Website Explorer cannot run on browser settings or system pages.");
       switchView("chat");
       return;
     }
 
     chatDomainLabel.textContent = currentDomain;
 
-    // Check if currently indexing in background
+    // Check active indexing in background
     chrome.runtime.sendMessage({
       type: "GET_CRAWL_STATUS",
       data: { domain: currentDomain }
@@ -192,13 +178,11 @@ async function checkIndexState() {
         updateIndexingProgress(status);
         switchView("indexing");
       } else {
-        // Check local cache
-        const indexKey = `index:${currentDomain}`;
-        chrome.storage.local.get([indexKey], (res) => {
-          const index = res[indexKey];
-          // Check freshness (24h = 86400000ms)
-          if (index && (Date.now() - index.timestamp < 86400000)) {
-            renderReadyChat(index.pageCount, index.chunks.length);
+        const directoryKey = `directory:${currentDomain}`;
+        chrome.storage.local.get([directoryKey], (res) => {
+          const directory = res[directoryKey];
+          if (directory && (Date.now() - directory.timestamp < 86400000)) {
+            renderReadyChat(directory.pages.length);
           } else {
             renderIndexingPrompt();
           }
@@ -207,7 +191,7 @@ async function checkIndexState() {
     });
 
   } catch (err) {
-    console.error("Index check failed:", err);
+    console.error("Directory status check failed:", err);
     showSystemMessage("Error parsing page origin. Make sure you are on a public website.");
     switchView("chat");
   }
@@ -219,11 +203,11 @@ function renderIndexingPrompt() {
   card.className = "card";
   card.style.textAlign = "center";
   card.innerHTML = `
-    <h3 class="card-title" style="margin-bottom: 8px;">Index Website Content</h3>
+    <h3 class="card-title" style="margin-bottom: 8px;">Map Website Structure</h3>
     <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;">
-      This website has not been indexed yet. Let's crawl its pages and build a local knowledge base.
+      Build a lightweight directory of this website's pages (URLs, titles, headings) to enable agentic exploration.
     </p>
-    <button class="btn" id="btn-start-crawl">Index Domain Now</button>
+    <button class="btn" id="btn-start-crawl">Map Domain Now</button>
   `;
   chatMessagesContainer.appendChild(card);
   switchView("chat");
@@ -231,13 +215,11 @@ function renderIndexingPrompt() {
   const startCrawlBtn = document.getElementById("btn-start-crawl");
   if (startCrawlBtn) {
     startCrawlBtn.addEventListener("click", () => {
-      // Request optional host permission
       const origin = new URL(currentUrl).origin + "/*";
       chrome.permissions.request({
         origins: [origin]
       }, (granted) => {
         if (granted) {
-          // Trigger crawl via background worker
           chrome.runtime.sendMessage({
             type: "START_CRAWL",
             data: { domain: currentDomain, url: currentUrl }
@@ -245,18 +227,17 @@ function renderIndexingPrompt() {
             switchView("indexing");
           });
         } else {
-          alert("Host permissions are required to crawl and index this website.");
+          alert("Host permissions are required to map this website.");
         }
       });
     });
   }
 }
 
-function renderReadyChat(pageCount: number, chunkCount: number) {
+function renderReadyChat(pageCount: number) {
   chatMessagesContainer.innerHTML = "";
-  showSystemMessage(`Loaded cached index. Found ${pageCount} pages (${chunkCount} context vectors) cached locally.`);
+  showSystemMessage(`Ready to explore. Mapped ${pageCount} pages locally. Ask a question and the AI agent will retrieve the best pages!`);
   
-  // Enable input
   chatInput.disabled = false;
   btnSendMessage.disabled = false;
   chatInput.placeholder = "Ask about this site...";
@@ -264,13 +245,13 @@ function renderReadyChat(pageCount: number, chunkCount: number) {
 }
 
 function updateIndexingProgress(state: any) {
-  indexingState.textContent = state.status === "crawling" ? "Crawling Content Pages" : "Generating Vector Index";
+  indexingState.textContent = "Mapping Site Structure";
   indexingSub.textContent = state.message;
 
   const percentage = state.total > 0 ? Math.round((state.progress / state.total) * 100) : 0;
   indexingProgressBar.style.width = `${percentage}%`;
   indexingPercentage.textContent = `${percentage}%`;
-  indexingCount.textContent = `${state.progress} / ${state.total} ${state.status === "crawling" ? 'pages' : 'vectors'}`;
+  indexingCount.textContent = `${state.progress} / ${state.total} pages`;
 }
 
 // Listen for updates from background service worker
@@ -287,9 +268,9 @@ chrome.runtime.onMessage.addListener((message) => {
       card.className = "card";
       card.style.borderLeft = "3px solid #ff3b30";
       card.innerHTML = `
-        <h3 class="card-title" style="color: #ff453a;">Indexing Failed</h3>
+        <h3 class="card-title" style="color: #ff453a;">Mapping Failed</h3>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">${state.message}</p>
-        <button class="btn" id="btn-crawl-retry">Retry Indexing</button>
+        <button class="btn" id="btn-crawl-retry">Retry mapping</button>
       `;
       chatMessagesContainer.appendChild(card);
       switchView("chat");
@@ -312,6 +293,32 @@ chatInput.addEventListener("keydown", (e) => {
   }
 });
 
+// Initialize LLM adapter on demand
+async function getLLMAdapter() {
+  const settings = await chrome.storage.local.get(["provider", "apiKey", "model"]);
+  const { provider, apiKey, model } = settings;
+
+  if (provider === "gemini") {
+    return createGeminiLLMAdapter(apiKey, model || "gemini-2.5-flash");
+  } else if (provider === "openai") {
+    return createOpenAILLMAdapter(apiKey, model || "gpt-4o-mini");
+  } else if (provider === "anthropic") {
+    return createAnthropicLLMAdapter(apiKey, model || "claude-3-5-sonnet-20241022");
+  } else if (provider === "deepseek") {
+    return createDeepSeekLLMAdapter(apiKey, model || "deepseek-chat");
+  } else if (provider === "groq") {
+    return createGroqLLMAdapter(apiKey, model || "llama3-8b-8192");
+  } else if (provider === "ollama") {
+    return createOllamaLLMAdapter(model || "llama3");
+  } else {
+    return createOpenAICompatibleLLMAdapter({
+      apiKey,
+      baseUrl: provider === "cohere" ? "https://api.cohere.com" : "https://api.openai.com",
+      model: model || "gpt-4o-mini"
+    });
+  }
+}
+
 async function submitMessage() {
   const query = chatInput.value.trim();
   if (!query) return;
@@ -320,89 +327,182 @@ async function submitMessage() {
   appendMessage("user", query);
   
   const typingEl = appendTypingIndicator();
-  
+  updateTypingText(typingEl, "Analyzing request...");
+
   try {
-    const settings = await chrome.storage.local.get(["provider", "apiKey", "model", "embeddingModel"]);
-    const { provider, apiKey, model, embeddingModel } = settings;
+    const settings = await chrome.storage.local.get(["provider", "apiKey"]);
+    const { provider, apiKey } = settings;
 
-    // 1. Build Embedding Adapter
-    let embeddingAdapter;
-    if (provider === "gemini") {
-      embeddingAdapter = createGeminiEmbeddingAdapter(apiKey);
-    } else if (provider === "openai") {
-      embeddingAdapter = createOpenAIEmbeddingAdapter(apiKey, embeddingModel || "text-embedding-3-small");
-    } else if (provider === "cohere") {
-      embeddingAdapter = createCohereEmbeddingAdapter(apiKey, embeddingModel || "embed-english-v3.0");
-    } else {
-      embeddingAdapter = createGeminiEmbeddingAdapter(apiKey);
+    if (!apiKey && provider !== "ollama") {
+      throw new Error("Missing API key. Please configure your settings.");
     }
 
-    // 2. Build LLM Adapter
-    let llmAdapter;
-    if (provider === "gemini") {
-      llmAdapter = createGeminiLLMAdapter(apiKey, model || "gemini-2.5-flash");
-    } else if (provider === "openai") {
-      llmAdapter = createOpenAILLMAdapter(apiKey, model || "gpt-4o-mini");
-    } else if (provider === "anthropic") {
-      llmAdapter = createAnthropicLLMAdapter(apiKey, model || "claude-3-5-sonnet-20241022");
-    } else if (provider === "deepseek") {
-      llmAdapter = createDeepSeekLLMAdapter(apiKey, model || "deepseek-chat");
-    } else if (provider === "groq") {
-      llmAdapter = createGroqLLMAdapter(apiKey, model || "llama3-8b-8192");
-    } else if (provider === "ollama") {
-      llmAdapter = createOllamaLLMAdapter(model || "llama3");
-    } else {
-      // General OpenAI Compatible fallback
-      llmAdapter = createOpenAICompatibleLLMAdapter({
-        apiKey,
-        baseUrl: provider === "cohere" ? "https://api.cohere.com" : "https://api.openai.com",
-        model: model || "gpt-4o-mini"
+    // 1. Fetch site directory
+    const directoryKey = `directory:${currentDomain}`;
+    const directoryRes = await chrome.storage.local.get([directoryKey]);
+    const directory = directoryRes[directoryKey];
+
+    if (!directory || !Array.isArray(directory.pages) || directory.pages.length === 0) {
+      throw new Error("Site map is missing. Please re-index this website.");
+    }
+
+    // 2. Select matching pages (LLM Link Router)
+    updateTypingText(typingEl, "Selecting relevant pages to read...");
+    const llm = await getLLMAdapter();
+
+    const pagesListSummary = directory.pages.map((p: any, idx: number) => {
+      return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}\nDescription: ${p.description}\nHeadings: ${p.headings.join(", ")}`;
+    }).join("\n\n---\n\n");
+
+    const routerSystemPrompt = `You are a link router agent representing the website ${currentDomain}.
+Your job is to look at the list of available pages below and select the top 2 or 3 pages (URLs) that are most likely to contain the answer to the user's question.
+
+Guidelines:
+1. Return ONLY a valid JSON array containing the selected URLs, for example: ["https://example.com/page1", "https://example.com/page2"]
+2. Do not explain your choice. Output ONLY the JSON array.
+3. If no page seems relevant, return an empty array: []
+
+Available Pages:
+${pagesListSummary}`;
+
+    const routerResponse = await llm({
+      question: query,
+      systemPrompt: routerSystemPrompt,
+      conversation: []
+    });
+
+    let selectedUrls: string[] = [];
+    try {
+      const jsonMatch = routerResponse.answer.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        selectedUrls = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      console.warn("Failed to parse router selection, falling back to keyword search:", e);
+    }
+
+    // Fallback: If AI Router fails or returns nothing, fall back to home page or simple keyword matching
+    if (selectedUrls.length === 0) {
+      // Find pages containing query words in title/headings
+      const queryWords = query.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(w => w.length > 2);
+      const matches = directory.pages.filter((p: any) => {
+        const titleMatch = queryWords.some(w => p.title.toLowerCase().includes(w));
+        const headMatch = queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
+        return titleMatch || headMatch;
       });
+      selectedUrls = matches.slice(0, 3).map((m: any) => m.url);
+      
+      // Ultimate fallback: homepage
+      if (selectedUrls.length === 0) {
+        selectedUrls = [currentUrl];
+      }
     }
 
-    // 3. Build Vector Store
-    const vectorStore = createChromeStorageVectorStore(currentDomain);
+    // 3. Fetch content for selected pages & utilize cache
+    const retrievedPages: Array<{ url: string; title: string; text: string }> = [];
 
-    // Hardcoded thresholds based on provider
-    const threshold = provider === "gemini" ? 0.4 : 0.35;
+    for (const url of selectedUrls) {
+      const cacheKey = `cache:${url}`;
+      const cacheRes = await chrome.storage.local.get([cacheKey]);
+      const cachedData = cacheRes[cacheKey];
 
-    // 4. Run RAG Pipeline
-    const pipelineResult = await runRagPipeline(query, chatHistory, {
-      embeddingAdapter,
-      llmAdapter,
-      vectorStore,
-      matchCount: 6,
-      matchThreshold: threshold,
+      // Cache expires after 24 hours
+      if (cachedData && (Date.now() - cachedData.timestamp < 86400000)) {
+        retrievedPages.push({
+          url,
+          title: cachedData.title,
+          text: cachedData.text
+        });
+      } else {
+        // Fetch fresh text in background
+        updateTypingText(typingEl, `Reading: ${new URL(url).pathname}...`);
+        const fetchResult = await chrome.runtime.sendMessage({
+          type: "FETCH_PAGE",
+          data: { url }
+        });
+
+        if (fetchResult && fetchResult.success) {
+          retrievedPages.push({
+            url,
+            title: fetchResult.title,
+            text: fetchResult.text
+          });
+
+          // Save page text cache locally
+          await chrome.storage.local.set({
+            [cacheKey]: {
+              url,
+              title: fetchResult.title,
+              text: fetchResult.text,
+              timestamp: Date.now()
+            }
+          });
+        }
+      }
+    }
+
+    if (retrievedPages.length === 0) {
+      throw new Error("Unable to load content from the chosen website pages.");
+    }
+
+    // 4. Synthesize final response (LLM Answer Generator)
+    updateTypingText(typingEl, "Synthesizing answer...");
+
+    const contextContext = retrievedPages.map((page, idx) => {
+      return `[Source ${idx + 1}]
+URL: ${page.url}
+Title: ${page.title}
+Content:
+${page.text}`;
+    }).join("\n\n---\n\n");
+
+    const generatorSystemPrompt = `You are a friendly, helpful website assistant representing ${currentDomain}. 
+Answer the user's questions naturally, conversationally, and in the first person.
+
+Guidelines:
+1. Answer using ONLY the website content provided below. Do NOT make up, guess, or hallucinate facts that are not present.
+2. If the context does not contain enough information to answer, reply politely explaining that you do not have that specific information.
+3. Cite the source URLs from the context in your responses when providing factual details.
+4. Avoid robotic framing phrases (do NOT start with 'Based on the context...', 'According to the website...', etc.). Just speak directly.
+
+Website Content:
+${contextContext}`;
+
+    const answerResponse = await llm({
+      question: query,
+      systemPrompt: generatorSystemPrompt,
+      conversation: chatHistory
     });
 
     typingEl.remove();
 
-    // 5. Hallucination Guard Check
-    if (!pipelineResult.answer && pipelineResult.needsHumanHandoff) {
-      appendMessage("assistant", "I couldn't find anything about that on this site.");
-    } else {
-      appendMessage("assistant", pipelineResult.answer, pipelineResult.sources, pipelineResult.suggestedQuestions);
-      chatHistory.push({ role: "user", content: query });
-      chatHistory.push({ role: "assistant", content: pipelineResult.answer });
-      // Cap history window
-      if (chatHistory.length > 12) {
-        chatHistory = chatHistory.slice(-12);
-      }
+    // Map source formats
+    const sources = retrievedPages.map(page => ({
+      title: page.title,
+      url: page.url
+    }));
+
+    appendMessage("assistant", answerResponse.answer, sources);
+
+    // Save history
+    chatHistory.push({ role: "user", content: query });
+    chatHistory.push({ role: "assistant", content: answerResponse.answer });
+    if (chatHistory.length > 10) {
+      chatHistory = chatHistory.slice(-10);
     }
 
   } catch (err) {
-    console.error("RAG execution failed:", err);
+    console.error("RAG pipeline failed:", err);
     typingEl.remove();
-    appendMessage("assistant", `Sorry, I encountered an error answering your question: ${err instanceof Error ? err.message : String(err)}`);
+    appendMessage("assistant", `Sorry, I encountered an error: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
 // Message Rendering Helpers
-function appendMessage(role: "user" | "assistant" | "system", content: string, sources?: any[], suggestions?: string[]) {
+function appendMessage(role: "user" | "assistant" | "system", content: string, sources?: any[]) {
   const container = document.createElement("div");
   container.className = `message ${role}`;
 
-  // Process text paragraphs safely
   const textContainer = document.createElement("div");
   textContainer.textContent = content;
   textContainer.style.whiteSpace = "pre-wrap";
@@ -418,7 +518,6 @@ function appendMessage(role: "user" | "assistant" | "system", content: string, s
     title.textContent = "Sources:";
     sourcesDiv.appendChild(title);
 
-    // De-duplicate urls
     const uniqueSources = new Map<string, string>();
     for (const src of sources) {
       if (src.url) {
@@ -441,25 +540,6 @@ function appendMessage(role: "user" | "assistant" | "system", content: string, s
     container.appendChild(sourcesDiv);
   }
 
-  // Render suggestions
-  if (suggestions && suggestions.length > 0) {
-    const suggsDiv = document.createElement("div");
-    suggsDiv.className = "suggestions-list";
-    
-    for (const sug of suggestions) {
-      const btn = document.createElement("button");
-      btn.className = "suggestion-pill";
-      btn.textContent = sug;
-      btn.addEventListener("click", () => {
-        chatInput.value = sug;
-        submitMessage();
-      });
-      suggsDiv.appendChild(btn);
-    }
-    
-    container.appendChild(suggsDiv);
-  }
-
   chatMessagesContainer.appendChild(container);
   chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
 }
@@ -468,6 +548,7 @@ function appendTypingIndicator() {
   const container = document.createElement("div");
   container.className = "message assistant typing-indicator";
   container.innerHTML = `
+    <span class="typing-text" style="font-size: 0.8rem; color: var(--text-muted); margin-right: 8px;">Thinking...</span>
     <div class="typing-dot"></div>
     <div class="typing-dot"></div>
     <div class="typing-dot"></div>
@@ -475,6 +556,13 @@ function appendTypingIndicator() {
   chatMessagesContainer.appendChild(container);
   chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
   return container;
+}
+
+function updateTypingText(indicator: HTMLDivElement, text: string) {
+  const textEl = indicator.querySelector(".typing-text");
+  if (textEl) {
+    textEl.textContent = text;
+  }
 }
 
 function showSystemMessage(text: string) {
@@ -493,19 +581,18 @@ document.addEventListener("DOMContentLoaded", () => {
     inputModel.value = res.model || defaults?.model || "";
     inputEmbeddingModel.value = res.embeddingModel || defaults?.embeddingModel || "";
 
-    // Trigger changes if provider has specialized fields
     const event = new Event("change");
     selectProvider.dispatchEvent(event);
 
     checkIndexState();
   });
 
-  // Track when active tab changes
+  // Track tab changes
   chrome.tabs.onActivated.addListener(() => {
     checkIndexState();
   });
 
-  // Track when active tab navigates to a new URL
+  // Track tab URL updates
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.url) {
       checkIndexState();
