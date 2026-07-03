@@ -11,6 +11,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Dynamic Content Fetcher**: Added background fetches to parse and clean HTML via `offscreen.ts` on demand.
 - **Page Content Caching**: Caches parsed page content locally under `cache:${url}` for 24 hours to eliminate redundant network requests.
 - **Sanity Test Suite**: Added a basic testing module for the new code architecture in `sanity.test.ts`.
+- **Forced Re-crawling Button**: Added an interactive `#btn-reindex` button in the sidebar header to clear local directory caches and force a fresh crawl on demand.
 
 ### Removed
 - **Vector Embedding RAG**: Deleted legacy chunker (`chunker.ts`), local vector stores (`vectorStores.ts`), and the RAG pipeline wrapper (`ragPipeline.ts`) to resolve 429 API rate limits completely.

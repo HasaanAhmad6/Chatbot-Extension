@@ -75,6 +75,7 @@ const chatDomainLabel = document.getElementById("chat-domain-label") as HTMLDivE
 const chatMessagesContainer = document.getElementById("chat-messages-container") as HTMLDivElement;
 const chatInput = document.getElementById("chat-input") as HTMLInputElement;
 const btnSendMessage = document.getElementById("btn-send-message") as HTMLButtonElement;
+const btnReindex = document.getElementById("btn-reindex") as HTMLButtonElement;
 
 // Show/hide credentials group based on provider
 selectProvider.addEventListener("change", () => {
@@ -125,6 +126,16 @@ btnSaveSettings.addEventListener("click", () => {
 
 settingsToggle.addEventListener("click", () => {
   switchView("settings");
+});
+
+btnReindex.addEventListener("click", () => {
+  if (confirm(`Are you sure you want to re-crawl and re-map ${currentDomain}? This will clear the local cache.`)) {
+    const directoryKey = `directory:${currentDomain}`;
+    chrome.storage.local.remove([directoryKey], () => {
+      chatMessagesContainer.innerHTML = "";
+      checkIndexState();
+    });
+  }
 });
 
 function switchView(view: "settings" | "indexing" | "chat") {
