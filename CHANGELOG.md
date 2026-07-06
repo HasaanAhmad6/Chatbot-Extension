@@ -2,6 +2,11 @@
 
 All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this file.
 
+## [0.5.1] - 2026-07-06
+
+### Changed
+- **Documentation Overhaul**: Completely rewrote the `README.md` to document the new Chrome Extension architecture (Manifest V3, sidebar UI, service worker crawler, offscreen DOM parsing, and local page caching) replacing the legacy React widget instructions.
+
 ## [0.5.0] - 2026-07-03
 
 ### Added
