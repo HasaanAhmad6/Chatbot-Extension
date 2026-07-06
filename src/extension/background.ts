@@ -99,20 +99,41 @@ function isUrlAllowed(urlStr: string, disallowedPaths: string[]): boolean {
 // Sitemap parser returning list of URLs
 async function parseSitemap(origin: string): Promise<string[]> {
   try {
-    const response = await fetch(`${origin}/sitemap.xml`);
-    if (!response.ok) return [];
-    const text = await response.text();
     const urls: string[] = [];
-    const regex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      if (match[1]) {
-        urls.push(match[1].trim());
+    const sitemapsToParse = [`${origin}/sitemap.xml`];
+    const parsedSitemaps = new Set<string>();
+
+    while (sitemapsToParse.length > 0 && parsedSitemaps.size < 12) {
+      const currentSitemap = sitemapsToParse.shift()!;
+      if (parsedSitemaps.has(currentSitemap)) continue;
+      parsedSitemaps.add(currentSitemap);
+
+      const response = await fetch(currentSitemap);
+      if (!response.ok) continue;
+      const text = await response.text();
+
+      const regex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        if (match[1]) {
+          const url = match[1].trim();
+          if (url.endsWith('.xml') || url.includes('-sitemap') || url.includes('/sitemap')) {
+            const isLowPriority = ['tag', 'category', 'author', 'event', 'member', 'club', 'society', 'citation'].some(
+              keyword => url.toLowerCase().includes(keyword)
+            );
+            if (!isLowPriority) {
+              sitemapsToParse.push(url);
+            }
+          } else {
+            urls.push(url);
+          }
+        }
       }
     }
+
     return urls;
   } catch (err) {
-    console.warn("Failed to fetch/parse sitemap.xml:", err);
+    console.warn("Failed to fetch/parse sitemap:", err);
     return [];
   }
 }
