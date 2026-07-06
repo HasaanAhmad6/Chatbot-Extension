@@ -175,7 +175,7 @@ async function checkIndexState() {
     return;
   }
 
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.url) {
     showSystemMessage("Unable to retrieve tab details. Please refresh the page.");
     switchView("chat");
