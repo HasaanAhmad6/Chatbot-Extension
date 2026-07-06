@@ -5,16 +5,18 @@
 export async function fetchWithRetry(
   url: string,
   init?: RequestInit,
-  retries = 3,
+  retries = 4,
   delay = 1000
 ): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, init);
-      // Retry on Rate Limiting (429) or Server Side Failures (5xx)
       if (response.status === 429 || (response.status >= 500 && response.status <= 599)) {
         if (i === retries - 1) return response; // Final attempt, return response
-        const backoff = delay * Math.pow(2, i);
+        const is429 = response.status === 429;
+        const backoff = is429 
+          ? (delay * Math.pow(3, i) + 2000) 
+          : (delay * Math.pow(2, i));
         console.warn(`[fetchWithRetry] HTTP ${response.status} encountered. Retrying in ${backoff}ms...`);
         await new Promise((resolve) => setTimeout(resolve, backoff));
         continue;
