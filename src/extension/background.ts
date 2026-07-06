@@ -13,6 +13,38 @@ interface PageMetadata {
   headings: string[];
 }
 
+function getUrlCrawlScore(url: string, startOrigin: string): number {
+  try {
+    const u = new URL(url);
+    let score = 0;
+    if (u.origin !== startOrigin) return -1000;
+    const pathname = u.pathname.toLowerCase();
+    const segmentCount = pathname.split('/').filter(Boolean).length;
+    score -= segmentCount * 10;
+    
+    const highPriorityKeywords = [
+      'admission', 'apply', 'enroll', 'program', 'academic', 
+      'course', 'degree', 'contact', 'about', 'faculty', 
+      'department', 'eligibility', 'fee', 'structure', 'requirement'
+    ];
+    highPriorityKeywords.forEach((keyword) => {
+      if (pathname.includes(keyword)) {
+        score += 30;
+      }
+    });
+
+    const lowPriorityKeywords = ['news', 'event', 'blog', 'gallery', 'date', 'tag', 'category', 'archive', 'page/'];
+    lowPriorityKeywords.forEach((keyword) => {
+      if (pathname.includes(keyword)) {
+        score -= 20;
+      }
+    });
+    return score;
+  } catch {
+    return -1000;
+  }
+}
+
 const crawlStates = new Map<string, CrawlState>();
 
 // Handle extension icon clicks by opening the sidebar
@@ -133,6 +165,9 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
       }
     }
 
+    // Prioritize sitemap and start URLs
+    queue.sort((a, b) => getUrlCrawlScore(b, origin) - getUrlCrawlScore(a, origin));
+
     state.total = maxPages;
     notifyChange();
 
@@ -177,6 +212,7 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
 
               // Extract and add new links to the queue
               if (Array.isArray(metaResult.links)) {
+                let addedNewLink = false;
                 for (const link of metaResult.links) {
                   try {
                     const u = new URL(link);
@@ -189,8 +225,12 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
                       !queue.includes(linkClean)
                     ) {
                       queue.push(linkClean);
+                      addedNewLink = true;
                     }
                   } catch {}
+                }
+                if (addedNewLink) {
+                  queue.sort((a, b) => getUrlCrawlScore(b, origin) - getUrlCrawlScore(a, origin));
                 }
               }
             }

@@ -59,7 +59,7 @@ chrome.runtime.onMessage.addListener((message: ParseHtmlMessage, sender, sendRes
 
       // Focus on main content area if available, fallback to body
       let container: Element = doc.body || doc.documentElement;
-      const mainEl = doc.querySelector("main, article, #content, .content, #main");
+      const mainEl = doc.querySelector("main, article, #content, .content, #main, .entry-content, .post-content, #content-area");
       if (mainEl && mainEl.textContent && mainEl.textContent.trim().length > 100) {
         container = mainEl;
       }

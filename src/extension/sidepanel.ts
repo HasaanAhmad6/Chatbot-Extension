@@ -13,6 +13,13 @@ import type { ConversationTurn, ChatMessage } from "../types";
 let currentDomain = "";
 let currentUrl = "";
 let chatHistory: ConversationTurn[] = [];
+let chatBubbles: ChatBubble[] = [];
+
+interface ChatBubble {
+  role: "user" | "assistant" | "system";
+  content: string;
+  sources?: any[];
+}
 
 // Provider configurations
 const PROVIDER_DEFAULTS: Record<string, { model: string; embeddingModel: string; keyLabel: string }> = {
@@ -125,14 +132,22 @@ btnSaveSettings.addEventListener("click", () => {
 });
 
 settingsToggle.addEventListener("click", () => {
-  switchView("settings");
+  if (viewSettings.classList.contains("active")) {
+    checkIndexState();
+  } else {
+    switchView("settings");
+  }
 });
 
 btnReindex.addEventListener("click", () => {
-  if (confirm(`Are you sure you want to re-crawl and re-map ${currentDomain}? This will clear the local cache.`)) {
+  if (confirm(`Are you sure you want to re-crawl and re-map ${currentDomain}? This will clear the local cache and reset chat history.`)) {
     const directoryKey = `directory:${currentDomain}`;
-    chrome.storage.local.remove([directoryKey], () => {
+    const historyKey = `chatHistory:${currentDomain}`;
+    const bubblesKey = `chatBubbles:${currentDomain}`;
+    chrome.storage.local.remove([directoryKey, historyKey, bubblesKey], () => {
       chatMessagesContainer.innerHTML = "";
+      chatHistory = [];
+      chatBubbles = [];
       checkIndexState();
     });
   }
@@ -170,13 +185,16 @@ async function checkIndexState() {
   try {
     currentUrl = tab.url;
     const urlObj = new URL(tab.url);
-    currentDomain = urlObj.hostname;
+    const newDomain = urlObj.hostname;
 
-    if (!currentDomain || urlObj.protocol.startsWith("chrome")) {
+    if (!newDomain || urlObj.protocol.startsWith("chrome")) {
       showSystemMessage("Agentic Website Explorer cannot run on browser settings or system pages.");
       switchView("chat");
       return;
     }
+
+    const domainChanged = (newDomain !== currentDomain);
+    currentDomain = newDomain;
 
     chatDomainLabel.textContent = currentDomain;
 
@@ -193,7 +211,12 @@ async function checkIndexState() {
         chrome.storage.local.get([directoryKey], (res) => {
           const directory = res[directoryKey];
           if (directory && (Date.now() - directory.timestamp < 86400000)) {
-            renderReadyChat(directory.pages.length);
+            const isChatActive = viewChat.classList.contains("active");
+            if (domainChanged || !isChatActive) {
+              loadChatSession(currentDomain, directory.pages.length);
+            } else {
+              switchView("chat");
+            }
           } else {
             renderIndexingPrompt();
           }
@@ -520,12 +543,48 @@ ${contextContext}`;
 }
 
 // Message Rendering Helpers
+function renderTextWithLinks(el: HTMLElement, text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  parts.forEach((part) => {
+    if (urlRegex.test(part)) {
+      let cleanUrl = part;
+      let trailingPunctuation = "";
+      const punctuationMatch = part.match(/([.,;)]+)$/);
+      if (punctuationMatch) {
+        cleanUrl = part.slice(0, -punctuationMatch[0].length);
+        trailingPunctuation = punctuationMatch[0];
+      }
+
+      const a = document.createElement("a");
+      a.href = cleanUrl;
+      a.target = "_blank";
+      a.className = "inline-link";
+      a.textContent = cleanUrl;
+      el.appendChild(a);
+
+      if (trailingPunctuation) {
+        el.appendChild(document.createTextNode(trailingPunctuation));
+      }
+    } else {
+      el.appendChild(document.createTextNode(part));
+    }
+  });
+}
+
 function appendMessage(role: "user" | "assistant" | "system", content: string, sources?: any[]) {
+  chatBubbles.push({ role, content, sources });
+  appendMessageHTML(role, content, sources);
+  saveChatSession();
+}
+
+function appendMessageHTML(role: "user" | "assistant" | "system", content: string, sources?: any[]) {
   const container = document.createElement("div");
   container.className = `message ${role}`;
 
   const textContainer = document.createElement("div");
-  textContainer.textContent = content;
+  renderTextWithLinks(textContainer, content);
   textContainer.style.whiteSpace = "pre-wrap";
   container.appendChild(textContainer);
 
@@ -563,6 +622,44 @@ function appendMessage(role: "user" | "assistant" | "system", content: string, s
 
   chatMessagesContainer.appendChild(container);
   chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+}
+
+async function saveChatSession() {
+  if (!currentDomain) return;
+  const historyKey = `chatHistory:${currentDomain}`;
+  const bubblesKey = `chatBubbles:${currentDomain}`;
+  await chrome.storage.local.set({
+    [historyKey]: chatHistory,
+    [bubblesKey]: chatBubbles
+  });
+}
+
+async function loadChatSession(domain: string, pageCount: number) {
+  currentDomain = domain;
+  const historyKey = `chatHistory:${domain}`;
+  const bubblesKey = `chatBubbles:${domain}`;
+  
+  chrome.storage.local.get([historyKey, bubblesKey], (res) => {
+    chatMessagesContainer.innerHTML = "";
+    
+    if (res[bubblesKey] && Array.isArray(res[bubblesKey]) && res[bubblesKey].length > 0) {
+      chatHistory = res[historyKey] || [];
+      chatBubbles = res[bubblesKey];
+      
+      chatBubbles.forEach((bubble) => {
+        appendMessageHTML(bubble.role, bubble.content, bubble.sources);
+      });
+      
+      chatInput.disabled = false;
+      btnSendMessage.disabled = false;
+      chatInput.placeholder = "Ask about this site...";
+      switchView("chat");
+    } else {
+      chatHistory = [];
+      chatBubbles = [];
+      renderReadyChat(pageCount);
+    }
+  });
 }
 
 function appendTypingIndicator() {
