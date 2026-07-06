@@ -33,12 +33,28 @@ function getUrlCrawlScore(url: string, startOrigin: string): number {
       }
     });
 
-    const lowPriorityKeywords = ['news', 'event', 'blog', 'gallery', 'date', 'tag', 'category', 'archive', 'page/'];
+    const lowPriorityKeywords = [
+      'news', 'event', 'blog', 'gallery', 'date', 'tag', 'category', 
+      'archive', 'page/', 'merit-list', 'meritlist', 'result', 
+      'career', 'jobs', 'announcement', 'press-release'
+    ];
     lowPriorityKeywords.forEach((keyword) => {
       if (pathname.includes(keyword)) {
-        score -= 20;
+        score -= 40;
       }
     });
+
+    // Penalize historical years (e.g. 2010 to 2025) to avoid flooding index with old pages
+    const yearsPattern = /(201[0-9]|202[0-5])/;
+    if (yearsPattern.test(pathname)) {
+      score -= 150;
+    }
+
+    // Boost current/future admission cycles (e.g. 2026, 2027)
+    if (pathname.includes("2026") || pathname.includes("2027")) {
+      score += 50;
+    }
+
     return score;
   } catch {
     return -1000;
@@ -168,7 +184,7 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
     const visited = new Set<string>();
     const queue: string[] = [startUrl];
     const directory: PageMetadata[] = [];
-    const maxPages = 40;
+    const maxPages = 60;
 
     // Check for sitemap to pre-populate queue
     state.message = "Checking for sitemap.xml...";
