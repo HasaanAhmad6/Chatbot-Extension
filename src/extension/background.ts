@@ -156,7 +156,7 @@ async function parseSitemap(origin: string, onProgress?: (msg: string) => void):
         }
       } catch {}
 
-      const response = await fetchWithRetry(currentSitemap);
+      const response = await fetchWithRetry(currentSitemap, undefined, 1);
       if (!response.ok) continue;
       const text = await response.text();
 
@@ -264,7 +264,7 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
             state.message = `Crawling: ${pathName.length > 15 ? pathName.slice(0, 15) + "..." : pathName}...`;
             notifyChange();
 
-            const response = await fetchWithRetry(url);
+            const response = await fetchWithRetry(url, undefined, 1);
             if (!response.ok) return;
 
             const contentType = response.headers.get("content-type");
@@ -375,7 +375,7 @@ async function fetchAndCleanPage(url: string): Promise<{ success: boolean; text?
   try {
     await createOffscreenDocument();
     
-    const response = await fetchWithRetry(url);
+    const response = await fetchWithRetry(url, undefined, 2);
     if (!response.ok) {
       throw new Error(`Failed to fetch: ${response.statusText}`);
     }
