@@ -295,8 +295,14 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
                   try {
                     const u = new URL(link);
                     const linkClean = u.origin + u.pathname;
+                    const isSameOrigin = u.origin === origin;
+                    const isPdf = linkClean.endsWith(".pdf");
+                    const baseDomain = origin.split('.').slice(-2).join('.');
+                    const cleanBase = baseDomain.split('.')[0];
+                    const isRelatedPdf = isPdf && (u.hostname.includes(cleanBase) || u.hostname.includes("kinsta.cloud") || u.hostname.includes("wp-content"));
+
                     if (
-                      u.origin === origin &&
+                      (isSameOrigin || isRelatedPdf) &&
                       (u.protocol === "http:" || u.protocol === "https:") &&
                       isUrlAllowed(linkClean, disallowed) &&
                       !visited.has(linkClean) &&
