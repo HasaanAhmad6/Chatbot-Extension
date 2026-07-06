@@ -177,23 +177,25 @@ async function checkIndexState() {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.url) {
-    showSystemMessage("Unable to retrieve tab details. Please refresh the page.");
-    switchView("chat");
+    // Silently return to avoid disrupting the UI during fast tab transitions
     return;
   }
 
   try {
-    currentUrl = tab.url;
     const urlObj = new URL(tab.url);
     const newDomain = urlObj.hostname;
 
-    if (!newDomain || urlObj.protocol.startsWith("chrome")) {
-      showSystemMessage("Agentic Website Explorer cannot run on browser settings or system pages.");
-      switchView("chat");
+    // Check if it's a chrome system page or invalid protocol
+    if (!newDomain || urlObj.protocol.startsWith("chrome") || urlObj.protocol.startsWith("about")) {
+      chatDomainLabel.textContent = "Unsupported Page";
+      chatInput.disabled = true;
+      btnSendMessage.disabled = true;
+      chatInput.placeholder = "Chat disabled on system pages";
       return;
     }
 
     const domainChanged = (newDomain !== currentDomain);
+    currentUrl = tab.url;
     currentDomain = newDomain;
 
     chatDomainLabel.textContent = currentDomain;
@@ -215,6 +217,10 @@ async function checkIndexState() {
             if (domainChanged || !isChatActive) {
               loadChatSession(currentDomain, directory.pages.length);
             } else {
+              // Enable inputs if same domain and ready
+              chatInput.disabled = false;
+              btnSendMessage.disabled = false;
+              chatInput.placeholder = "Ask about this site...";
               switchView("chat");
             }
           } else {
@@ -226,8 +232,6 @@ async function checkIndexState() {
 
   } catch (err) {
     console.error("Directory status check failed:", err);
-    showSystemMessage("Error parsing page origin. Make sure you are on a public website.");
-    switchView("chat");
   }
 }
 

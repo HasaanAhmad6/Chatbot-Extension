@@ -14,7 +14,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **State Persistence**: Resolved state loss where chat history disappeared when navigating pages, opening links, or switching tabs and coming back. Chat history and message bubbles are now saved and loaded per-domain using `chrome.storage.local`.
 - **Crawl Prioritization Heuristic**: Implemented a URL scoring heuristic in `background.ts` to prioritize crawling core directory pages (admissions, programs, contacts, about, etc.) over deep event logs or blog archives, resolving issues where key info pages were missed within the 40-page crawl limit.
 - **Inline Link Formatting**: Fixed raw text URLs inside chat bubbles to render as active, clickable, and styled anchor tags (`_blank`) instead of un-openable plain text.
-- **Active Tab Query Stability**: Fixed "Unable to retrieve tab details" errors by switching the active tab query configuration in `sidepanel.ts` from `lastFocusedWindow: true` to `currentWindow: true`.
+- **Active Tab Query Stability**: Fixed "Unable to retrieve tab details" and "Agentic Website Explorer cannot run on browser settings" disruptive warnings. The sidepanel now silently returns if tab details are momentarily blank (e.g. during fast tab transitions), and disables inputs without clearing the chat container when navigating to system pages.
 
 ## [0.5.0] - 2026-07-03
 
