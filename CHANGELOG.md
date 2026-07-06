@@ -20,6 +20,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Sitemap Index Parsing**: Resolved issues where the crawler got stuck on Yoast/SEO nested sitemap indices by parsing nested sitemaps recursively, ignoring low-value directories (tags, categories, authors, events, members), and extracting the actual content URLs directly.
 - **TPM Rate Limit Mitigation**: Optimised the Link Router prompt by truncating directory descriptions to 100 characters and capping headings to 4 per page. Decreased page text content context limits from 12,000 to 8,000 characters, reducing token usage by ~65% per request. Additionally, increased the default retry attempts to 4 inside `fetchWithRetry` with longer, custom backoff delays for 429 statuses to completely resolve Gemini Free Tier HTTP 429 rate limit exceptions.
 - **Detailed API Error Reporting**: Updated adapters inside `adapterFactories.ts` for Gemini, Anthropic, and OpenAI-compatible endpoints to parse and return the detailed API error message body. This helps users clearly see specific issues (e.g., daily quota exhaustion/RESOURCE_EXHAUSTED) instead of ambiguous status numbers.
+- **Sitemap Loading UX & Timeout**: Added active visual progress updates (e.g. "Reading sitemap: page-sitemap1.xml...") during Yoast sitemap index parsing in `background.ts`. Built a timeout wrapper `fetchWithTimeout` (8-second threshold) inside `utils.ts` to prevent infinite hangs during slow server responses.
 
 ## [0.5.0] - 2026-07-03
 

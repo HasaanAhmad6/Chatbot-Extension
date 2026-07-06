@@ -38,6 +38,29 @@ export function isPdfResource(url: string, contentType?: string | null): boolean
 }
 
 /**
+ * Executes a fetch call with a strict timeout using AbortController.
+ */
+export async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeout = 8000
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
+/**
  * Executes a fetch call with automatic exponential backoff retries.
  * Retries on HTTP 429 (Too Many Requests), 5xx Server Errors, or network drop failures.
  */
@@ -49,7 +72,7 @@ export async function fetchWithRetry(
 ): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, init);
+      const response = await fetchWithTimeout(url, init, 8000);
       if (response.status === 429 || (response.status >= 500 && response.status <= 599)) {
         if (i === retries - 1) return response; // Final attempt, return response
         const is429 = response.status === 429;

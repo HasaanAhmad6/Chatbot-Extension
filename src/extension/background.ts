@@ -137,7 +137,7 @@ function isUrlAllowed(urlStr: string, disallowedPaths: string[]): boolean {
 }
 
 // Sitemap parser returning list of URLs
-async function parseSitemap(origin: string): Promise<string[]> {
+async function parseSitemap(origin: string, onProgress?: (msg: string) => void): Promise<string[]> {
   try {
     const urls: string[] = [];
     const sitemapsToParse = [`${origin}/sitemap.xml`];
@@ -148,7 +148,15 @@ async function parseSitemap(origin: string): Promise<string[]> {
       if (parsedSitemaps.has(currentSitemap)) continue;
       parsedSitemaps.add(currentSitemap);
 
-      const response = await fetch(currentSitemap);
+      try {
+        const u = new URL(currentSitemap);
+        const fileName = u.pathname.split('/').pop() || "sitemap.xml";
+        if (onProgress) {
+          onProgress(`Reading sitemap: ${fileName}...`);
+        }
+      } catch {}
+
+      const response = await fetchWithRetry(currentSitemap);
       if (!response.ok) continue;
       const text = await response.text();
 
@@ -185,7 +193,7 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
     status: "crawling",
     progress: 0,
     total: 0,
-    message: "Initializing site crawler...",
+    message: "Initializing crawl...",
     domain,
   };
   crawlStates.set(domain, state);
@@ -213,7 +221,10 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
     // Check for sitemap to pre-populate queue
     state.message = "Checking for sitemap.xml...";
     notifyChange();
-    const sitemapUrls = await parseSitemap(origin);
+    const sitemapUrls = await parseSitemap(origin, (msg) => {
+      state.message = msg;
+      notifyChange();
+    });
     if (sitemapUrls.length > 0) {
       for (const url of sitemapUrls) {
         try {
