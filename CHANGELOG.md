@@ -22,6 +22,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Detailed API Error Reporting**: Updated adapters inside `adapterFactories.ts` for Gemini, Anthropic, and OpenAI-compatible endpoints to parse and return the detailed API error message body. This helps users clearly see specific issues (e.g., daily quota exhaustion/RESOURCE_EXHAUSTED) instead of ambiguous status numbers.
 - **Sitemap Loading UX & Timeout**: Added active visual progress updates (e.g. "Reading sitemap: page-sitemap1.xml...") during Yoast sitemap index parsing in `background.ts`. Built a timeout wrapper `fetchWithTimeout` (8-second threshold) inside `utils.ts` to prevent infinite hangs during slow server responses.
 - **Sitemap & Page Retry Bounds**: Optimized `fetchWithRetry` parameters in `background.ts` to use a maximum of 1 attempt for sitemap files and page crawls, and 2 attempts for on-demand RAG pages. This ensures slow/dead connections fail fast (within 8 seconds) and skip immediately to keep crawls fast and responsive.
+- **Admin Guide Crawl Prioritization**: Added strong crawl score boosts (+250 points) for administrative keyword combinations like `/how-to-apply/`, `/apply-now/`, `/required-documents/`, and `/admission-guide/`. This guarantees that core guide pages are crawled during the initial sweep, allowing the scraper to discover and index critical secondary links (such as CDN-hosted PDF admission guides).
 
 ## [0.5.0] - 2026-07-03
 

@@ -48,6 +48,21 @@ function getUrlCrawlScore(url: string, startOrigin: string): number {
       }
     });
 
+    // Massive boost for critical administrative guides and required documents lists
+    const administrativeKeywords = [
+      'how-to-apply', 'apply-now', 'required-document', 'required-doc',
+      'admission-guide', 'admissions-guide', 'document-checklist', 'guideline'
+    ];
+    administrativeKeywords.forEach((keyword) => {
+      if (pathname.includes(keyword)) {
+        score += 250;
+      }
+    });
+
+    if (pathname === '/admissions/' || pathname === '/admission/' || pathname === '/apply/' || pathname === '/apply-now/') {
+      score += 200;
+    }
+
     const lowPriorityKeywords = [
       'news', 'event', 'gallery', 'tag', 'category',
       'archive', 'page/', 'merit-list', 'meritlist', 'result',
