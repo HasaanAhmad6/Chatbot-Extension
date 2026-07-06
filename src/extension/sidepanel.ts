@@ -389,7 +389,11 @@ async function submitMessage() {
     const llm = await getLLMAdapter();
 
     const pagesListSummary = directory.pages.map((p: any, idx: number) => {
-      return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}\nDescription: ${p.description}\nHeadings: ${p.headings.join(", ")}`;
+      const desc = p.description ? `\nDescription: ${p.description.slice(0, 100)}` : "";
+      const headingsList = Array.isArray(p.headings) && p.headings.length > 0 
+        ? `\nHeadings: ${p.headings.slice(0, 4).join(", ")}` 
+        : "";
+      return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}${desc}${headingsList}`;
     }).join("\n\n---\n\n");
 
     const routerSystemPrompt = `You are a link router agent representing the website ${currentDomain}.
@@ -489,7 +493,11 @@ ${pagesListSummary}`;
             updateTypingText(typingEl, "Re-routing query with new pages...");
             
             const updatedPagesListSummary = directory.pages.map((p: any, idx: number) => {
-              return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}\nDescription: ${p.description}\nHeadings: ${p.headings.join(", ")}`;
+              const desc = p.description ? `\nDescription: ${p.description.slice(0, 100)}` : "";
+              const headingsList = Array.isArray(p.headings) && p.headings.length > 0 
+                ? `\nHeadings: ${p.headings.slice(0, 4).join(", ")}` 
+                : "";
+              return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}${desc}${headingsList}`;
             }).join("\n\n---\n\n");
 
             const updatedRouterSystemPrompt = `You are a link router agent representing the website ${currentDomain}.
@@ -589,8 +597,8 @@ ${updatedPagesListSummary}`;
 
     const contextContext = retrievedPages.map((page, idx) => {
       // Limit page text length to prevent TPM (Tokens Per Minute) limit exhaustion on Gemini Free Tier
-      const cleanText = page.text.length > 12000
-        ? page.text.slice(0, 12000) + "\n... [Content truncated to prevent rate limit limits] ..."
+      const cleanText = page.text.length > 8000
+        ? page.text.slice(0, 8000) + "\n... [Content truncated to prevent rate limit limits] ..."
         : page.text;
 
       return `[Source ${idx + 1}]
