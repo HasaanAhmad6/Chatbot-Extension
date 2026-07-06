@@ -415,20 +415,121 @@ ${pagesListSummary}`;
       console.warn("Failed to parse router selection, falling back to keyword search:", e);
     }
 
-    // Fallback: If AI Router fails or returns nothing, fall back to home page or simple keyword matching
+    // Fallback: If AI Router fails or returns nothing, see if we can do progressive crawling
     if (selectedUrls.length === 0) {
-      // Find pages containing query words in title/headings
-      const queryWords = query.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(w => w.length > 2);
-      const matches = directory.pages.filter((p: any) => {
-        const titleMatch = queryWords.some(w => p.title.toLowerCase().includes(w));
-        const headMatch = queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
-        return titleMatch || headMatch;
-      });
-      selectedUrls = matches.slice(0, 3).map((m: any) => m.url);
-      
-      // Ultimate fallback: homepage
+      updateTypingText(typingEl, "No matching pages indexed. Scanning remaining queue...");
+      const queueKey = `queue:${currentDomain}`;
+      const queueRes = await chrome.storage.local.get([queueKey]);
+      const queueList = queueRes[queueKey] || [];
+
+      if (queueList.length > 0) {
+        // Extract keywords from user query
+        const queryWords = query.toLowerCase()
+          .replace(/[^\w\s]/g, " ")
+          .split(/\s+/)
+          .filter(w => w.length > 3 && !['what', 'where', 'when', 'how', 'why', 'who', 'does', 'offer', 'have', 'with', 'about', 'from'].includes(w));
+
+        // Find matches in the queue list
+        const matches = queueList.filter((url: string) => {
+          try {
+            const pathname = new URL(url).pathname.toLowerCase();
+            return queryWords.some(w => pathname.includes(w));
+          } catch {
+            return false;
+          }
+        });
+
+        if (matches.length > 0) {
+          const pagesToCrawl = matches.slice(0, 2);
+          updateTypingText(typingEl, `Crawling ${pagesToCrawl.length} queued pages...`);
+
+          const crawledPages: any[] = [];
+          for (const url of pagesToCrawl) {
+            updateTypingText(typingEl, `Crawling: ${new URL(url).pathname}...`);
+            const crawlResult = await chrome.runtime.sendMessage({
+              type: "FETCH_PAGE",
+              data: { url }
+            });
+
+            if (crawlResult && crawlResult.success) {
+              crawledPages.push({
+                url,
+                title: crawlResult.title || url,
+                description: "",
+                headings: []
+              });
+
+              // Pre-cache content for step 3
+              const cacheKey = `cache:${url}`;
+              await chrome.storage.local.set({
+                [cacheKey]: {
+                  url,
+                  title: crawlResult.title,
+                  text: crawlResult.text,
+                  timestamp: Date.now()
+                }
+              });
+            }
+          }
+
+          if (crawledPages.length > 0) {
+            // Update directory
+            directory.pages = [...directory.pages, ...crawledPages];
+            await chrome.storage.local.set({ [directoryKey]: directory });
+
+            // Remove from queue
+            const updatedQueue = queueList.filter((url: string) => !pagesToCrawl.includes(url));
+            await chrome.storage.local.set({ [queueKey]: updatedQueue });
+
+            // Re-run Link Router
+            updateTypingText(typingEl, "Re-routing query with new pages...");
+            
+            const updatedPagesListSummary = directory.pages.map((p: any, idx: number) => {
+              return `ID: ${idx}\nURL: ${p.url}\nTitle: ${p.title}\nDescription: ${p.description}\nHeadings: ${p.headings.join(", ")}`;
+            }).join("\n\n---\n\n");
+
+            const updatedRouterSystemPrompt = `You are a link router agent representing the website ${currentDomain}.
+Your job is to look at the list of available pages below and select the top 2 or 3 pages (URLs) that are most likely to contain the answer to the user's question.
+
+Guidelines:
+1. Return ONLY a valid JSON array containing the selected URLs, for example: ["https://example.com/page1", "https://example.com/page2"]
+2. Do not explain your choice. Output ONLY the JSON array.
+3. If no page seems relevant, return an empty array: []
+
+Available Pages:
+${updatedPagesListSummary}`;
+
+            const updatedRouterResponse = await llm({
+              question: query,
+              systemPrompt: updatedRouterSystemPrompt,
+              conversation: []
+            });
+
+            try {
+              const jsonMatch = updatedRouterResponse.answer.match(/\[[\s\S]*?\]/);
+              if (jsonMatch) {
+                selectedUrls = JSON.parse(jsonMatch[0]);
+              }
+            } catch (e) {
+              console.warn("Failed to parse updated router selection:", e);
+            }
+          }
+        }
+      }
+
+      // If progressive crawl found nothing or router is still empty, fall back to keyword search
       if (selectedUrls.length === 0) {
-        selectedUrls = [currentUrl];
+        const queryWords = query.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(w => w.length > 2);
+        const matches = directory.pages.filter((p: any) => {
+          const titleMatch = queryWords.some(w => p.title.toLowerCase().includes(w));
+          const headMatch = queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
+          return titleMatch || headMatch;
+        });
+        selectedUrls = matches.slice(0, 3).map((m: any) => m.url);
+        
+        if (selectedUrls.length === 0) {
+          selectedUrls = [currentUrl];
+        }
       }
     }
 

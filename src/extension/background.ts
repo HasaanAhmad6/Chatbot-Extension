@@ -251,14 +251,16 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
       throw new Error("Could not crawl any pages on this domain.");
     }
 
-    // Store directory map locally
+    // Store directory map and remaining queue locally
     const directoryKey = `directory:${domain}`;
+    const queueKey = `queue:${domain}`;
     await chrome.storage.local.set({
       [directoryKey]: {
         domain,
         timestamp: Date.now(),
         pages: directory,
       },
+      [queueKey]: queue
     });
 
     state.status = "completed";

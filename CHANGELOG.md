@@ -4,6 +4,9 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 
 ## [0.5.1] - 2026-07-06
 
+### Added
+- **Progressive Fallback Crawling**: Implemented a dynamic lazy-crawl engine. If the initial 40-page crawl map doesn't contain pages that match the user's query, the extension scans the remaining crawl queue for keyword-matching URLs (e.g. "scholarships", "requirements"), crawls those pages dynamically on-demand, caches them, updates the directory index, and re-runs routing.
+
 ### Changed
 - **Documentation Overhaul**: Completely rewrote the `README.md` to document the new Chrome Extension architecture (Manifest V3, sidebar UI, service worker crawler, offscreen DOM parsing, and local page caching) replacing the legacy React widget instructions.
 
