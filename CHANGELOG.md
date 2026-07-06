@@ -18,6 +18,7 @@ All notable changes to `@hasaan_6/rag-chatbot-widget` are documented in this fil
 - **Active Tab Query Stability**: Fixed "Unable to retrieve tab details" and "Agentic Website Explorer cannot run on browser settings" disruptive warnings. The sidepanel now silently returns if tab details are momentarily blank (e.g. during fast tab transitions), and disables inputs without clearing the chat container when navigating to system pages.
 - **Sitemap Index Parsing**: Resolved issues where the crawler got stuck on Yoast/SEO nested sitemap indices by parsing nested sitemaps recursively, ignoring low-value directories (tags, categories, authors, events, members), and extracting the actual content URLs directly.
 - **TPM Rate Limit Mitigation**: Optimised the Link Router prompt by truncating directory descriptions to 100 characters and capping headings to 4 per page. Decreased page text content context limits from 12,000 to 8,000 characters, reducing token usage by ~65% per request. Additionally, increased the default retry attempts to 4 inside `fetchWithRetry` with longer, custom backoff delays for 429 statuses to completely resolve Gemini Free Tier HTTP 429 rate limit exceptions.
+- **Detailed API Error Reporting**: Updated adapters inside `adapterFactories.ts` for Gemini, Anthropic, and OpenAI-compatible endpoints to parse and return the detailed API error message body. This helps users clearly see specific issues (e.g., daily quota exhaustion/RESOURCE_EXHAUSTED) instead of ambiguous status numbers.
 
 ## [0.5.0] - 2026-07-03
 

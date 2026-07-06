@@ -88,7 +88,14 @@ export function createOpenAICompatibleLLMAdapter(config: {
         ],
       }),
     });
-    if (!response.ok) throw new Error(`LLM request failed: ${response.status}`);
+    if (!response.ok) {
+      try {
+        const errData = await response.json();
+        throw new Error(`API Error: ${errData.error?.message || errData.error?.status || `Status ${response.status}`}`);
+      } catch {
+        throw new Error(`LLM request failed: ${response.status}`);
+      }
+    }
     const data = await response.json();
     return { answer: (data.choices[0]?.message?.content ?? "").trim() };
   };
@@ -129,7 +136,14 @@ export function createAnthropicLLMAdapter(apiKey: string, model = "claude-3-5-ha
         messages: [...conversation.map((turn) => ({ role: turn.role, content: turn.content })), { role: "user", content: question }],
       }),
     });
-    if (!response.ok) throw new Error(`Anthropic request failed: ${response.status}`);
+    if (!response.ok) {
+      try {
+        const errData = await response.json();
+        throw new Error(`Anthropic API Error: ${errData.error?.message || errData.error?.type || `Status ${response.status}`}`);
+      } catch {
+        throw new Error(`Anthropic request failed: ${response.status}`);
+      }
+    }
     const data = await response.json();
     return { answer: (data.content[0]?.text ?? "").trim() };
   };
@@ -157,7 +171,14 @@ export function createGeminiLLMAdapter(apiKey: string, model = "gemini-2.5-flash
         }),
       }
     );
-    if (!response.ok) throw new Error(`Gemini LLM request failed: ${response.status}`);
+    if (!response.ok) {
+      try {
+        const errData = await response.json();
+        throw new Error(`Gemini API Error: ${errData.error?.message || errData.error?.status || `Status ${response.status}`}`);
+      } catch {
+        throw new Error(`Gemini LLM request failed: ${response.status}`);
+      }
+    }
     const data = await response.json();
     return { answer: (data.candidates[0]?.content?.parts[0]?.text ?? "").trim() };
   };
