@@ -1,3 +1,5 @@
+import { fetchWithRetry, arrayBufferToBase64, isPdfResource } from "../lib/utils";
+
 interface CrawlState {
   status: "idle" | "crawling" | "completed" | "error";
   progress: number;
@@ -33,16 +35,38 @@ function getUrlCrawlScore(url: string, startOrigin: string): number {
       }
     });
 
+    // Critical time-sensitive pages (deadlines, schedules, calendars). These are
+    // exactly the pages most likely to answer "when does X close/open" questions,
+    // so they get a very strong boost that overrides normal depth/segment penalties.
+    const criticalDatePatterns = [
+      'deadline', 'schedule', 'calendar', 'critical-date', 'important-date',
+      'last-date', 'closing-date', 'key-date', 'admission-calendar'
+    ];
+    criticalDatePatterns.forEach((keyword) => {
+      if (pathname.includes(keyword)) {
+        score += 200;
+      }
+    });
+
     const lowPriorityKeywords = [
-      'news', 'event', 'blog', 'gallery', 'date', 'tag', 'category', 
-      'archive', 'page/', 'merit-list', 'meritlist', 'result', 
-      'career', 'jobs', 'announcement', 'press-release'
+      'news', 'event', 'gallery', 'tag', 'category',
+      'archive', 'page/', 'merit-list', 'meritlist', 'result',
+      'career', 'jobs', 'press-release'
     ];
     lowPriorityKeywords.forEach((keyword) => {
       if (pathname.includes(keyword)) {
         score -= 40;
       }
     });
+
+    // NOTE: intentionally NOT using a generic 'date' or 'blog' substring match here.
+    // 'date' is a substring of many *high-value* admission pages/words (e.g.
+    // "critical-dates", "important-dates", "graduate", "undergraduate", "candidate"),
+    // so a naive .includes('date') check was silently deprioritizing the very pages
+    // that contain admission deadline information. Likewise 'blog' posts on
+    // university sites frequently ARE the authoritative, up-to-date announcement of
+    // admission cycle deadlines, so they're no longer blanket-penalized; the
+    // year-based scoring below already demotes stale blog posts.
 
     // Penalize historical years (e.g. 2010 to 2025) to avoid flooding index with old pages
     const yearsPattern = /(201[0-9]|202[0-5])/;
@@ -229,15 +253,32 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
             state.message = `Crawling: ${pathName.length > 15 ? pathName.slice(0, 15) + "..." : pathName}...`;
             notifyChange();
 
-            const response = await fetch(url);
+            const response = await fetchWithRetry(url);
             if (!response.ok) return;
-            const html = await response.text();
 
-            const metaResult = await chrome.runtime.sendMessage({
-              target: "offscreen",
-              type: "parse-metadata",
-              data: { html, url },
-            });
+            const contentType = response.headers.get("content-type");
+            const isPdf = isPdfResource(url, contentType);
+
+            let metaResult: any;
+            if (isPdf) {
+              // PDFs (admission calendars, fee schedules, merit lists, etc. are very
+              // commonly published as PDFs on university sites) can't be parsed by
+              // DOMParser as HTML - that silently produced garbage text/no links.
+              const buffer = await response.arrayBuffer();
+              const base64Data = arrayBufferToBase64(buffer);
+              metaResult = await chrome.runtime.sendMessage({
+                target: "offscreen",
+                type: "parse-pdf-metadata",
+                data: { base64Data, url },
+              });
+            } else {
+              const html = await response.text();
+              metaResult = await chrome.runtime.sendMessage({
+                target: "offscreen",
+                type: "parse-metadata",
+                data: { html, url },
+              });
+            }
 
             if (metaResult && metaResult.success) {
               directory.push({
@@ -247,7 +288,7 @@ async function runCrawlAndBuildDirectory(domain: string, startUrl: string) {
                 headings: metaResult.headings || [],
               });
 
-              // Extract and add new links to the queue
+              // Extract and add new links to the queue (PDFs have none to add)
               if (Array.isArray(metaResult.links)) {
                 let addedNewLink = false;
                 for (const link of metaResult.links) {
@@ -317,17 +358,31 @@ async function fetchAndCleanPage(url: string): Promise<{ success: boolean; text?
   try {
     await createOffscreenDocument();
     
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch: ${response.statusText}`);
     }
-    const html = await response.text();
 
-    const parseResult = await chrome.runtime.sendMessage({
-      target: "offscreen",
-      type: "parse-html",
-      data: { html, url },
-    });
+    const contentType = response.headers.get("content-type");
+    const isPdf = isPdfResource(url, contentType);
+
+    let parseResult: any;
+    if (isPdf) {
+      const buffer = await response.arrayBuffer();
+      const base64Data = arrayBufferToBase64(buffer);
+      parseResult = await chrome.runtime.sendMessage({
+        target: "offscreen",
+        type: "parse-pdf",
+        data: { base64Data, url },
+      });
+    } else {
+      const html = await response.text();
+      parseResult = await chrome.runtime.sendMessage({
+        target: "offscreen",
+        type: "parse-html",
+        data: { html, url },
+      });
+    }
 
     if (parseResult && parseResult.success) {
       return {

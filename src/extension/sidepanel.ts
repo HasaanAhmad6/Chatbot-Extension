@@ -423,20 +423,49 @@ ${pagesListSummary}`;
       console.warn("Failed to parse router selection, falling back to keyword search:", e);
     }
 
-    // Fallback: If AI Router fails or returns nothing, see if we can do progressive crawling
-    if (selectedUrls.length === 0) {
-      updateTypingText(typingEl, "No matching pages indexed. Scanning remaining queue...");
+    // Extract keywords from user query - used for supplementary keyword search below,
+    // regardless of whether the AI router already picked pages. This matters because
+    // the router only sees titles/headings/descriptions: a page can look like a great
+    // semantic match (e.g. "Offered Programs for Fall 2026" for a question about
+    // "admissions") while not actually containing the answer (e.g. a deadline date
+    // that lives on a separate "critical-dates" page or in a linked PDF). Running this
+    // unconditionally lets those pages get pulled in alongside the router's picks
+    // instead of only when the router comes back completely empty.
+    const queryWords = query.toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !['what', 'where', 'when', 'how', 'why', 'who', 'does', 'offer', 'have', 'with', 'about', 'from'].includes(w));
+
+    const MAX_TOTAL_PAGES = 5; // keep total context bounded for free-tier rate limits
+
+    // Supplement with keyword matches already in the indexed directory (cheap, no network)
+    if (queryWords.length > 0 && selectedUrls.length < MAX_TOTAL_PAGES) {
+      const directoryMatches = directory.pages.filter((p: any) => {
+        if (selectedUrls.includes(p.url)) return false;
+        const pathname = (() => { try { return new URL(p.url).pathname.toLowerCase(); } catch { return ""; } })();
+        const titleMatch = queryWords.some(w => (p.title || "").toLowerCase().includes(w));
+        const pathMatch = queryWords.some(w => pathname.includes(w));
+        const headMatch = Array.isArray(p.headings) && queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
+        return titleMatch || pathMatch || headMatch;
+      });
+      for (const m of directoryMatches) {
+        if (selectedUrls.length >= MAX_TOTAL_PAGES) break;
+        selectedUrls.push(m.url);
+      }
+    }
+
+    // Fallback: If the AI Router (plus directory keyword matches above) didn't fill our
+    // page budget, see if any not-yet-crawled queued page looks like a keyword match
+    // and progressively crawl it on the fly. This used to only run when the router
+    // returned nothing at all, which meant a "confident but wrong" router pick (e.g.
+    // matching on title similarity alone) would silently skip this discovery step.
+    if (selectedUrls.length < MAX_TOTAL_PAGES && queryWords.length > 0) {
+      updateTypingText(typingEl, "Scanning remaining queue for more relevant pages...");
       const queueKey = `queue:${currentDomain}`;
       const queueRes = await chrome.storage.local.get([queueKey]);
       const queueList = queueRes[queueKey] || [];
 
       if (queueList.length > 0) {
-        // Extract keywords from user query
-        const queryWords = query.toLowerCase()
-          .replace(/[^\w\s]/g, " ")
-          .split(/\s+/)
-          .filter(w => w.length > 3 && !['what', 'where', 'when', 'how', 'why', 'who', 'does', 'offer', 'have', 'with', 'about', 'from'].includes(w));
-
         // Find matches in the queue list
         const matches = queueList.filter((url: string) => {
           try {
@@ -448,7 +477,8 @@ ${pagesListSummary}`;
         });
 
         if (matches.length > 0) {
-          const pagesToCrawl = matches.slice(0, 2);
+          const remainingBudget = Math.max(0, MAX_TOTAL_PAGES - selectedUrls.length);
+          const pagesToCrawl = matches.slice(0, Math.max(2, remainingBudget));
           updateTypingText(typingEl, `Crawling ${pagesToCrawl.length} queued pages...`);
 
           const crawledPages: any[] = [];
@@ -520,7 +550,8 @@ ${updatedPagesListSummary}`;
             try {
               const jsonMatch = updatedRouterResponse.answer.match(/\[[\s\S]*?\]/);
               if (jsonMatch) {
-                selectedUrls = JSON.parse(jsonMatch[0]);
+                const rerouted: string[] = JSON.parse(jsonMatch[0]);
+                selectedUrls = Array.from(new Set([...selectedUrls, ...rerouted])).slice(0, MAX_TOTAL_PAGES);
               }
             } catch (e) {
               console.warn("Failed to parse updated router selection:", e);
@@ -529,12 +560,12 @@ ${updatedPagesListSummary}`;
         }
       }
 
-      // If progressive crawl found nothing or router is still empty, fall back to keyword search
+      // If nothing was found at all so far, fall back to a broader keyword search
+      // over the whole indexed directory
       if (selectedUrls.length === 0) {
-        const queryWords = query.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(w => w.length > 2);
         const matches = directory.pages.filter((p: any) => {
           const titleMatch = queryWords.some(w => p.title.toLowerCase().includes(w));
-          const headMatch = queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
+          const headMatch = Array.isArray(p.headings) && queryWords.some(w => p.headings.some((h: string) => h.toLowerCase().includes(w)));
           return titleMatch || headMatch;
         });
         selectedUrls = matches.slice(0, 3).map((m: any) => m.url);

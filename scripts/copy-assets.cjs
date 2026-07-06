@@ -34,3 +34,14 @@ for (const asset of staticAssets) {
     console.warn(`Warning: Extension asset not found: ${asset}`);
   }
 }
+
+// Copy the pdf.js worker script (used by the offscreen document to extract text
+// from PDF pages, e.g. admission calendars/fee schedules published as PDFs).
+const pdfWorkerSource = path.join(rootDir, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.mjs');
+const pdfWorkerDest = path.join(distDir, 'pdf.worker.mjs');
+if (fs.existsSync(pdfWorkerSource)) {
+  fs.copyFileSync(pdfWorkerSource, pdfWorkerDest);
+  console.log('Copied pdf.worker.mjs to dist/');
+} else {
+  console.warn('Warning: pdfjs-dist worker not found - run npm install first.');
+}
